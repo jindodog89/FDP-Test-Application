@@ -1,0 +1,27 @@
+fdp-tester/
+├── app.py
+├── backend/
+│   ├── __init__.py
+│   ├── device_manager.py
+│   ├── log_manager.py    
+│   ├── test_runner.py          
+│   └── drivers/
+│       ├── __init__.py
+│       ├── base_driver.py
+│       └── nvme_cli_driver.py  
+├── logs/                          #auto-created on first run
+│   ├── testLog_1.json
+│   └── debug/
+│       └── debugLog1.log
+├── tests/
+│   ├── __init__.py
+│   ├── registry.py                # Test registry
+│   └── fdp/						# Test list
+│       ├── __init__.py
+│       ├── test_fdp_status.py
+│       ├── test_fdp_configs.py
+│       ├── test_placement_ids.py
+│       ├── test_reclaim_units.py
+│       └── ...
+└── templates/
+    └── index.html                 # Full SPA frontend

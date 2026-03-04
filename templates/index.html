@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NVMe FDP Test Tool</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #22263a;
+  --border: #2e3350;
+  --accent: #4f8ef7;
+  --accent2: #7c3aed;
+  --green: #22c55e;
+  --red: #ef4444;
+  --yellow: #f59e0b;
+  --text: #e2e8f0;
+  --muted: #64748b;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Header */
+header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 20px; display: flex; align-items: center; gap: 16px; }
+.logo { display: flex; align-items: center; gap: 10px; }
+.logo-icon { width: 32px; height: 32px; background: linear-gradient(135deg, var(--accent), var(--accent2)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.logo h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+.logo span { font-size: 12px; color: var(--muted); }
+.header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.device-select { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+.btn { padding: 7px 16px; border-radius: 6px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+.btn-primary { background: var(--accent); color: white; }
+.btn-primary:hover { background: #3d7ef5; }
+.btn-primary:disabled { background: var(--surface2); color: var(--muted); cursor: not-allowed; }
+.btn-danger { background: var(--red); color: white; }
+.btn-danger:hover { filter: brightness(1.15); }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.status-dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+/* Layout */
+.main { display: grid; grid-template-columns: 280px 1fr 340px; flex: 1; overflow: hidden; gap: 0; }
+
+/* Panel base */
+.panel { display: flex; flex-direction: column; border-right: 1px solid var(--border); overflow: hidden; }
+.panel:last-child { border-right: none; }
+.panel-header { padding: 12px 16px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.panel-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); }
+.panel-body { flex: 1; overflow-y: auto; padding: 12px; }
+.panel-body::-webkit-scrollbar { width: 4px; }
+.panel-body::-webkit-scrollbar-track { background: transparent; }
+.panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+/* Test Cards */
+.test-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  cursor: grab;
+  transition: all 0.15s;
+  user-select: none;
+}
+.test-card:hover { border-color: var(--accent); background: var(--surface2); }
+.test-card.dragging { opacity: 0.4; cursor: grabbing; }
+.test-card.drag-over { border-color: var(--accent); background: var(--surface2); transform: scale(1.02); }
+.test-card-header { display: flex; align-items: flex-start; gap: 8px; }
+.test-card-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+.test-card-info { flex: 1; min-width: 0; }
+.test-card-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.test-card-desc { font-size: 11px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+.test-card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.tag { font-size: 10px; padding: 2px 6px; border-radius: 10px; background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+.cat-badge { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 600; }
+.cat-Basic { background: rgba(79,142,247,0.15); color: var(--accent); }
+.cat-Placement { background: rgba(124,58,237,0.15); color: #a78bfa; }
+.cat-Reclaim { background: rgba(34,197,94,0.15); color: var(--green); }
+.cat-Events { background: rgba(245,158,11,0.15); color: var(--yellow); }
+
+/* Category group */
+.cat-group-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin: 12px 0 6px; padding-left: 4px; }
+.cat-group-label:first-child { margin-top: 0; }
+
+/* Execution Zone */
+.exec-zone { display: flex; flex-direction: column; }
+.drop-zone {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 120px;
+  border-radius: 8px;
+  border: 2px dashed var(--border);
+  padding: 10px;
+  transition: all 0.2s;
+}
+.drop-zone.drag-active { border-color: var(--accent); background: rgba(79,142,247,0.05); }
+.drop-zone-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--muted); gap: 8px; padding: 30px; text-align: center; }
+.drop-zone-empty svg { opacity: 0.3; }
+
+.exec-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: grab;
+  transition: all 0.15s;
+}
+.exec-item:hover { border-color: var(--border); background: var(--surface2); }
+.exec-item.running { border-color: var(--accent); animation: pulse-border 1.5s infinite; }
+.exec-item.status-pass { border-color: var(--green); }
+.exec-item.status-fail { border-color: var(--red); }
+.exec-item.status-warn { border-color: var(--yellow); }
+.exec-item.status-error { border-color: var(--red); }
+@keyframes pulse-border { 0%,100% { box-shadow: 0 0 0 0 rgba(79,142,247,0); } 50% { box-shadow: 0 0 0 3px rgba(79,142,247,0.2); } }
+.exec-handle { color: var(--muted); font-size: 14px; cursor: grab; }
+.exec-name { flex: 1; font-size: 12px; font-weight: 500; }
+.exec-status { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
+.exec-status.idle { background: var(--surface2); }
+.exec-status.running { background: var(--accent); animation: spin 1s linear infinite; }
+.exec-status.status-pass { background: var(--green); }
+.exec-status.status-fail { background: var(--red); }
+.exec-status.status-warn { background: var(--yellow); }
+.exec-status.status-error { background: var(--red); }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.exec-remove { background: none; border: none; color: var(--muted); cursor: pointer; padding: 2px 4px; border-radius: 4px; font-size: 14px; }
+.exec-remove:hover { color: var(--red); background: rgba(239,68,68,0.1); }
+
+.exec-footer { padding: 10px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+.exec-summary { display: flex; gap: 10px; font-size: 11px; }
+.sum-item { display: flex; align-items: center; gap: 4px; color: var(--muted); }
+.sum-dot { width: 8px; height: 8px; border-radius: 50%; }
+.sum-dot.pass { background: var(--green); }
+.sum-dot.fail { background: var(--red); }
+.sum-dot.warn { background: var(--yellow); }
+
+/* Output Log */
+.output-panel { display: flex; flex-direction: column; }
+.log-container { flex: 1; overflow-y: auto; font-family: 'Cascadia Code', 'Fira Code', 'Courier New', monospace; font-size: 11.5px; line-height: 1.6; padding: 10px; background: #0a0c12; }
+.log-line { margin: 1px 0; }
+.log-line .ts { color: #3d4a6b; margin-right: 6px; }
+.log-line.info .msg { color: #94a3b8; }
+.log-line.success .msg { color: var(--green); }
+.log-line.error .msg { color: var(--red); }
+.log-line.warn .msg { color: var(--yellow); }
+.log-line.accent .msg { color: var(--accent); font-weight: 600; }
+.log-line.heading .msg { color: #c4b5fd; font-weight: 700; }
+.result-summary { padding: 12px; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 8px; flex-shrink: 0; }
+.res-card { flex: 1; min-width: 60px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; text-align: center; }
+.res-card .num { font-size: 22px; font-weight: 800; line-height: 1; }
+.res-card .lbl { font-size: 10px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+.res-card.pass .num { color: var(--green); }
+.res-card.fail .num { color: var(--red); }
+.res-card.warn .num { color: var(--yellow); }
+.res-card.total .num { color: var(--text); }
+
+/* Scrollbars */
+.drop-zone::-webkit-scrollbar, .log-container::-webkit-scrollbar { width: 4px; }
+.drop-zone::-webkit-scrollbar-thumb, .log-container::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+.exec-item.drop-above {
+  border-top: 2px solid var(--accent);
+  margin-top: -1px;
+}
+
+.exec-item.drop-below {
+  border-bottom: 2px solid var(--accent);
+  margin-bottom: -1px;
+}
+
+/* ── Device Control Panel ───────────────────────────────────────── */
+.device-control {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.device-control-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--muted);
+  margin-right: 4px;
+  white-space: nowrap;
+}
+.btn-control {
+  padding: 6px 13px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: var(--surface2);
+  color: var(--text);
+  white-space: nowrap;
+}
+.btn-control:hover  { border-color: var(--accent); color: var(--accent); }
+.btn-control.danger:hover { border-color: var(--red); color: var(--red); }
+.btn-control.create:hover { border-color: var(--green); color: var(--green); }
+.btn-control:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Modal overlay ──────────────────────────────────────────────── */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 480px;
+  max-width: 95vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+  animation: modal-in 0.2s ease;
+}
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(-12px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+.modal-header {
+  padding: 16px 20px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.modal-title { font-size: 15px; font-weight: 700; }
+.modal-subtitle { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 20px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.modal-close:hover { color: var(--text); background: var(--surface2); }
+.modal-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+.modal-footer {
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ── Form fields ────────────────────────────────────────────────── */
+.field-group { display: flex; flex-direction: column; gap: 5px; }
+.field-row   { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.field-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.field-hint  { font-size: 10px; color: var(--muted); opacity: 0.7; margin-top: 2px; }
+.field-input {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 7px 10px;
+  font-size: 13px;
+  width: 100%;
+  transition: border-color 0.15s;
+}
+.field-input:focus { outline: none; border-color: var(--accent); }
+.field-input.error { border-color: var(--red); }
+select.field-input { cursor: pointer; }
+.section-divider {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--accent);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2px;
+}
+
+/* ── NS Results popup ───────────────────────────────────────────── */
+.ns-result-box {
+  background: #0a0c12;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-family: 'Cascadia Code','Fira Code','Courier New',monospace;
+  font-size: 11px;
+  line-height: 1.7;
+  max-height: 260px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.ns-result-box .ok  { color: var(--green); }
+.ns-result-box .err { color: var(--red); }
+.ns-result-box .hd  { color: var(--accent); font-weight: 700; }
+.ns-result-box .mut { color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    <div>
+      <h1>NVMe FDP Test Tool</h1>
+      <span>Flexible Data Placement Validation</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="status-dot" id="conn-dot"></div>
+    <select class="device-select" id="device-select">
+      <option value="">Loading devices...</option>
+    </select>
+    <button class="btn btn-ghost btn-sm" onclick="refreshDevices()">↺ Refresh</button>
+    <button class="btn btn-primary" id="run-btn" onclick="runTests()" disabled>▶ Run Tests</button>
+    <button class="btn btn-danger" id="stop-btn" onclick="stopTests()" style="display:none">■ Stop</button>
+  </div>
+</header>
+
+<div class="main">
+  <!-- Left: Test Library -->
+  <div class="panel" id="test-library">
+    <div class="panel-header">
+      <span class="panel-title">Test Library</span>
+      <span id="test-count" style="font-size:11px;color:var(--muted)"></span>
+    </div>
+    <div class="panel-body" id="test-list">
+      <div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Loading tests...</div>
+    </div>
+  </div>
+
+  <!-- Center: Test Execution Zone -->
+  <div class="panel exec-zone">
+    <div class="panel-header">
+      <span class="panel-title">Test Execution Queue</span>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-ghost btn-sm" onclick="clearQueue()">Clear</button>
+        <button class="btn btn-ghost btn-sm" onclick="addAllTests()">Add All</button>
+      </div>
+    </div>
+    <div class="panel-body" style="display:flex;flex-direction:column;padding:10px;gap:8px;overflow:hidden">
+      <div id="drop-zone" class="drop-zone"
+        ondragover="onDragOver(event)"
+        ondragleave="onDragLeave(event)"
+        ondrop="onDrop(event)">
+        <div class="drop-zone-empty" id="drop-empty">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 5v14M5 12l7 7 7-7"/>
+          </svg>
+          <div style="font-size:13px;font-weight:600">Drop tests here</div>
+          <div style="font-size:11px">Drag from the library or click "Add All"</div>
+        </div>
+      </div>
+    </div>
+    <div class="exec-footer">
+      <div class="exec-summary">
+        <div class="sum-item"><div class="sum-dot pass"></div><span id="sum-pass">0 pass</span></div>
+        <div class="sum-item"><div class="sum-dot fail"></div><span id="sum-fail">0 fail</span></div>
+        <div class="sum-item"><div class="sum-dot warn"></div><span id="sum-warn">0 warn</span></div>
+        <div style="margin-left:auto;font-size:11px;color:var(--muted)" id="sum-total">0 tests queued</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Output / Results -->
+  <div class="panel output-panel">
+    <div class="panel-header">
+      <span class="panel-title">Test Output</span>
+      <button class="btn btn-ghost btn-sm" onclick="clearLog()">Clear</button>
+    </div>
+    <div class="log-container" id="log"></div>
+    <div class="result-summary" id="result-summary" style="display:none">
+      <div class="res-card total"><div class="num" id="rs-total">0</div><div class="lbl">Total</div></div>
+      <div class="res-card pass"><div class="num" id="rs-pass">0</div><div class="lbl">Pass</div></div>
+      <div class="res-card fail"><div class="num" id="rs-fail">0</div><div class="lbl">Fail</div></div>
+      <div class="res-card warn"><div class="num" id="rs-warn">0</div><div class="lbl">Warn</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Device Control Bar ──────────────────────────────────────── -->
+<div class="device-control" id="device-control-bar">
+  <span class="device-control-label">Device Control</span>
+  <button class="btn-control" onclick="ctrlListNS()" id="ctrl-list-ns">
+    📋 List Namespaces
+  </button>
+  <button class="btn-control danger" onclick="ctrlDeleteAllNS()" id="ctrl-del-ns">
+    🗑 Delete All Namespaces
+  </button>
+  <button class="btn-control create" onclick="openCreateNSModal()" id="ctrl-create-ns">
+    ＋ Create Namespace
+  </button>
+</div>
+
+<!-- ── Namespace Results Modal ─────────────────────────────────── -->
+<div class="modal-overlay" id="ns-result-modal">
+  <div class="modal" style="width:520px">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="ns-result-title">Namespace Operation</div>
+        <div class="modal-subtitle" id="ns-result-subtitle"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal('ns-result-modal')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="ns-result-box" id="ns-result-content"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('ns-result-modal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Create Namespace Modal ──────────────────────────────────── -->
+<div class="modal-overlay" id="create-ns-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">Create NVMe Namespace</div>
+        <div class="modal-subtitle">Configure FDP-aware namespace parameters</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('create-ns-modal')">×</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Basic Parameters -->
+      <div class="section-divider">Basic Parameters</div>
+
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label">Namespace Size (sectors)</label>
+          <input class="field-input" id="ns-size" type="number" min="1" value="10485760"
+                 placeholder="e.g. 10485760">
+          <span class="field-hint">Total size in logical blocks</span>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Namespace Capacity (sectors)</label>
+          <input class="field-input" id="ns-cap" type="number" min="1" value="10485760"
+                 placeholder="e.g. 10485760">
+          <span class="field-hint">Usable capacity (≤ size)</span>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label">Block Size (FLBAS)</label>
+          <select class="field-input" id="ns-flbas">
+            <option value="0">0 — 512 B</option>
+            <option value="1">1 — 512 B + 8B meta</option>
+            <option value="4" selected>4 — 4096 B</option>
+            <option value="5">5 — 4096 B + 8B meta</option>
+          </select>
+          <span class="field-hint">Formatted LBA size index</span>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Data Protection (DPS)</label>
+          <select class="field-input" id="ns-dps">
+            <option value="0" selected>0 — None</option>
+            <option value="1">1 — Type 1</option>
+            <option value="2">2 — Type 2</option>
+            <option value="3">3 — Type 3</option>
+          </select>
+          <span class="field-hint">End-to-end data protection</span>
+        </div>
+      </div>
+
+      <!-- FDP Parameters -->
+      <div class="section-divider" style="margin-top:4px">FDP Parameters</div>
+
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label">Reclaim Unit Handles</label>
+          <input class="field-input" id="ns-ruhs" type="number" min="1" max="128" value="8"
+                 placeholder="e.g. 8">
+          <span class="field-hint">Number of RU handles (1–128)</span>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Placement IDs</label>
+          <input class="field-input" id="ns-pids" type="number" min="1" max="128" value="8"
+                 placeholder="e.g. 8">
+          <span class="field-hint">Number of placement IDs (1–128)</span>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label">Endurance Group ID</label>
+          <input class="field-input" id="ns-endg" type="number" min="0" value="1"
+                 placeholder="e.g. 1">
+          <span class="field-hint">Endurance group to assign NS to</span>
+        </div>
+        <div class="field-group">
+          <label class="field-label">FDP Config Index</label>
+          <input class="field-input" id="ns-fdp-idx" type="number" min="0" value="0"
+                 placeholder="e.g. 0">
+          <span class="field-hint">FDP configuration record index</span>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">Namespace Sharing (NMIC)</label>
+        <select class="field-input" id="ns-nmic">
+          <option value="0" selected>0 — Private (not shared)</option>
+          <option value="1">1 — Shared</option>
+        </select>
+      </div>
+
+      <!-- Preview -->
+      <div class="field-group" id="cmd-preview-group">
+        <label class="field-label">Command Preview</label>
+        <div class="ns-result-box" id="cmd-preview" style="min-height:54px"></div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('create-ns-modal')">Cancel</button>
+      <button class="btn btn-primary" id="create-ns-btn" onclick="submitCreateNS()">
+        Create &amp; Attach
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+const socket = io();
+let availableTests = [];
+let queuedTests = []; // [{id, name, status}]
+let currentRunId = null;
+let draggingId = null;
+let draggingSource = null; // 'library' | 'queue'
+let dragOverQueueIdx = null;
+let draggingQueueIdx = null;   
+
+// ─── Socket events ──────────────────────────────────────────────────────────
+socket.on('connect', () => {
+  document.getElementById('conn-dot').classList.add('connected');
+  log('Connected to FDP Test Tool server', 'success');
+});
+socket.on('disconnect', () => {
+  document.getElementById('conn-dot').classList.remove('connected');
+  log('Disconnected from server', 'error');
+});
+
+socket.on('run_start', d => {
+  log(`▶ Starting run ${d.run_id} — ${d.total} test(s)`, 'accent');
+});
+socket.on('test_start', d => {
+  log(`\n◉ [${d.index + 1}] Running: ${d.name}`, 'heading');
+  updateQueueItemStatus(d.test_id, 'running');
+});
+socket.on('test_log', d => {
+  log('  ' + d.message, 'info');
+});
+socket.on('test_result', d => {
+  const icon = {pass:'✔', fail:'✘', warn:'⚠', error:'⚠', skip:'⏭'}[d.status] || '?';
+  const type = {pass:'success', fail:'error', warn:'warn', error:'error'}[d.status] || 'info';
+  log(`  ${icon} ${d.message}`, type);
+  updateQueueItemStatus(d.test_id, 'status-' + d.status);
+  updateSummary();
+});
+socket.on('run_complete', d => {
+  const r = d.results;
+  const pass = r.filter(x=>x.status==='pass').length;
+  const fail = r.filter(x=>x.status==='fail').length;
+  const warn = r.filter(x=>x.status==='warn').length;
+  log(`\n═══════════════════════════════════════`, 'info');
+  log(`Run complete: ${pass} pass / ${fail} fail / ${warn} warn`, pass===r.length?'success':'warn');
+  showResultSummary(r.length, pass, fail, warn);
+  setRunning(false);
+  currentRunId = null;
+});
+socket.on('run_stopped', () => {
+  log('Run stopped by user', 'warn');
+  setRunning(false);
+  currentRunId = null;
+});
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+async function init() {
+  await loadTests();
+  await refreshDevices();
+}
+
+async function loadTests() {
+  const r = await fetch('/api/tests').then(x=>x.json());
+  availableTests = r.tests || [];
+  document.getElementById('test-count').textContent = availableTests.length + ' tests';
+  renderTestLibrary();
+}
+
+async function refreshDevices() {
+  const r = await fetch('/api/devices').then(x=>x.json());
+  const sel = document.getElementById('device-select');
+  sel.innerHTML = '';
+  if (!r.devices || r.devices.length === 0) {
+    sel.innerHTML = '<option value="">No NVMe devices found</option>';
+    return;
+  }
+  r.devices.forEach(d => {
+    const o = document.createElement('option');
+    o.value = d.path;
+    o.textContent = `${d.path} — ${d.model} (${d.size_gb}GB)`;
+    sel.appendChild(o);
+  });
+  updateRunButton();
+}
+
+// ─── Test Library Rendering ──────────────────────────────────────────────────
+function renderTestLibrary() {
+  const container = document.getElementById('test-list');
+  container.innerHTML = '';
+
+  const grouped = {};
+  availableTests.forEach(t => {
+    if (!grouped[t.category]) grouped[t.category] = [];
+    grouped[t.category].push(t);
+  });
+
+  const catIcons = { Basic: '🔍', Placement: '📍', Reclaim: '♻️', Events: '📋', General: '⚙️' };
+
+  Object.entries(grouped).forEach(([cat, tests]) => {
+    const label = document.createElement('div');
+    label.className = 'cat-group-label';
+    label.textContent = cat;
+    container.appendChild(label);
+
+    tests.forEach(t => {
+      const card = document.createElement('div');
+      card.className = 'test-card';
+      card.draggable = true;
+      card.dataset.testId = t.id;
+      card.innerHTML = `
+        <div class="test-card-header">
+          <div class="test-card-icon">${catIcons[t.category] || '🧪'}</div>
+          <div class="test-card-info">
+            <div class="test-card-name">${t.name}</div>
+            <div class="test-card-desc">${t.description}</div>
+          </div>
+          <span class="cat-badge cat-${t.category}">${t.category}</span>
+        </div>
+        <div class="test-card-tags">${(t.tags||[]).map(tg=>`<span class="tag">${tg}</span>`).join('')}</div>
+      `;
+      card.addEventListener('dragstart', e => onLibraryDragStart(e, t.id));
+      card.addEventListener('dragend', () => card.classList.remove('dragging'));
+      card.addEventListener('dblclick', () => addToQueue(t.id));
+      container.appendChild(card);
+    });
+  });
+}
+
+// ─── Drag & Drop ─────────────────────────────────────────────────────────────
+function onLibraryDragStart(e, testId) {
+  draggingId = testId;
+  draggingSource = 'library';
+  e.dataTransfer.effectAllowed = 'copy';
+  e.currentTarget.classList.add('dragging');
+}
+
+function onDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+  document.getElementById('drop-zone').classList.add('drag-active');
+}
+
+function onDragLeave(e) {
+  document.getElementById('drop-zone').classList.remove('drag-active');
+}
+
+function onDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('drag-active');
+  // Only handle library → queue drops here; queue → queue is handled per-item
+  if (draggingSource === 'library' && draggingId) {
+    addToQueue(draggingId);
+  }
+  draggingId = null;
+}
+
+// ─── Queue Management ────────────────────────────────────────────────────────
+function addToQueue(testId) {
+  const test = availableTests.find(t => t.id === testId);
+  if (!test) return;
+  queuedTests.push({ id: testId, name: test.name, status: 'idle', category: test.category });
+  renderQueue();
+}
+
+function removeFromQueue(idx) {
+  queuedTests.splice(idx, 1);
+  renderQueue();
+}
+
+function clearQueue() {
+  queuedTests = [];
+  renderQueue();
+}
+
+function addAllTests() {
+  queuedTests = availableTests.map(t => ({ id: t.id, name: t.name, status: 'idle', category: t.category }));
+  renderQueue();
+}
+
+const catIcons2 = { Basic: '🔍', Placement: '📍', Reclaim: '♻️', Events: '📋', General: '⚙️' };
+
+function renderQueue() {
+  const zone = document.getElementById('drop-zone');
+  const empty = document.getElementById('drop-empty');
+
+  [...zone.querySelectorAll('.exec-item')].forEach(el => el.remove());
+
+  if (queuedTests.length === 0) {
+    empty.style.display = '';
+    updateRunButton();
+    updateSummary();
+    return;
+  }
+  empty.style.display = 'none';
+
+  queuedTests.forEach((t, i) => {
+    const item = document.createElement('div');
+    item.className = `exec-item${t.status !== 'idle' ? ' ' + t.status : ''}`;
+    item.dataset.queueIdx = i;
+    item.draggable = true;
+    item.innerHTML = `
+      <span class="exec-handle" title="Drag to reorder">⠿</span>
+      <span style="font-size:15px">${catIcons2[t.category] || '🧪'}</span>
+      <span class="exec-name">${t.name}</span>
+      <div class="exec-status ${t.status}">${statusIcon(t.status)}</div>
+      <button class="exec-remove" onclick="removeFromQueue(${i})" title="Remove">×</button>
+    `;
+
+    // Drag START — from queue (reorder)
+    item.addEventListener('dragstart', e => {
+      draggingId = t.id;
+      draggingSource = 'queue';
+      draggingQueueIdx = i;
+      e.dataTransfer.effectAllowed = 'move';
+      // Delay adding class so the drag image renders before opacity drops
+      setTimeout(() => item.classList.add('dragging'), 0);
+    });
+
+    item.addEventListener('dragend', () => {
+      item.classList.remove('dragging');
+      clearQueueDropIndicators();
+      draggingQueueIdx = null;
+      draggingSource = null;
+      draggingId = null;
+    });
+
+    // Drag OVER a queue item — show insertion indicator
+    item.addEventListener('dragover', e => {
+      if (draggingSource !== 'queue') return;
+      e.preventDefault();
+      e.stopPropagation();
+      clearQueueDropIndicators();
+      const rect = item.getBoundingClientRect();
+      const midpoint = rect.top + rect.height / 2;
+      if (e.clientY < midpoint) {
+        item.classList.add('drop-above');
+      } else {
+        item.classList.add('drop-below');
+      }
+    });
+
+    item.addEventListener('dragleave', () => {
+      item.classList.remove('drop-above', 'drop-below');
+    });
+
+    // Drop ON a queue item — reorder
+    item.addEventListener('drop', e => {
+      if (draggingSource !== 'queue') return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const targetIdx = parseInt(item.dataset.queueIdx);
+      const sourceIdx = draggingQueueIdx;
+
+      if (sourceIdx === null || sourceIdx === targetIdx) {
+        clearQueueDropIndicators();
+        return;
+      }
+
+      // Determine insert position based on which half was dropped on
+      const rect = item.getBoundingClientRect();
+      const midpoint = rect.top + rect.height / 2;
+      let insertAt = targetIdx;
+      if (e.clientY >= midpoint) insertAt = targetIdx + 1;
+
+      // Remove from original position and insert at new position
+      const [moved] = queuedTests.splice(sourceIdx, 1);
+      const adjustedInsert = insertAt > sourceIdx ? insertAt - 1 : insertAt;
+      queuedTests.splice(adjustedInsert, 0, moved);
+
+      clearQueueDropIndicators();
+      renderQueue();
+    });
+
+    zone.appendChild(item);
+  });
+
+  updateRunButton();
+  updateSummary();
+}
+
+function clearQueueDropIndicators() {
+  document.querySelectorAll('.exec-item').forEach(el => {
+    el.classList.remove('drop-above', 'drop-below');
+  });
+}
+
+function statusIcon(s) {
+  return { idle: '', running: '↻', 'status-pass': '✔', 'status-fail': '✘', 'status-warn': '⚠', 'status-error': '⚠' }[s] || '';
+}
+
+function updateQueueItemStatus(testId, status) {
+  const t = queuedTests.find(q => q.id === testId);
+  if (t) { t.status = status; renderQueue(); }
+}
+
+function updateSummary() {
+  const pass = queuedTests.filter(t => t.status === 'status-pass').length;
+  const fail = queuedTests.filter(t => t.status === 'status-fail').length;
+  const warn = queuedTests.filter(t => t.status === 'status-warn').length;
+  document.getElementById('sum-pass').textContent = pass + ' pass';
+  document.getElementById('sum-fail').textContent = fail + ' fail';
+  document.getElementById('sum-warn').textContent = warn + ' warn';
+  document.getElementById('sum-total').textContent = queuedTests.length + ' queued';
+}
+
+// ─── Run / Stop ──────────────────────────────────────────────────────────────
+async function runTests() {
+  const device = document.getElementById('device-select').value;
+  if (!device || queuedTests.length === 0) return;
+
+  // Reset statuses
+  queuedTests.forEach(t => t.status = 'idle');
+  renderQueue();
+  clearLog();
+  hideResultSummary();
+  setRunning(true);
+
+  const r = await fetch('/api/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ device, tests: queuedTests.map(t => t.id) })
+  }).then(x => x.json());
+
+  currentRunId = r.run_id;
+}
+
+async function stopTests() {
+  if (currentRunId) {
+    await fetch(`/api/run/${currentRunId}/stop`, { method: 'POST' });
+  }
+}
+
+function setRunning(running) {
+  document.getElementById('run-btn').style.display = running ? 'none' : '';
+  document.getElementById('stop-btn').style.display = running ? '' : 'none';
+}
+
+function updateRunButton() {
+  const device = document.getElementById('device-select').value;
+  const btn = document.getElementById('run-btn');
+  btn.disabled = !device || queuedTests.length === 0;
+}
+document.getElementById('device-select').addEventListener('change', updateRunButton);
+
+// ─── Log ─────────────────────────────────────────────────────────────────────
+function log(msg, type = 'info') {
+  const container = document.getElementById('log');
+  const line = document.createElement('div');
+  line.className = `log-line ${type}`;
+  const now = new Date();
+  const ts = now.toTimeString().slice(0,8);
+  line.innerHTML = `<span class="ts">${ts}</span><span class="msg">${escHtml(msg)}</span>`;
+  container.appendChild(line);
+  container.scrollTop = container.scrollHeight;
+}
+
+function clearLog() {
+  document.getElementById('log').innerHTML = '';
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ─── Results ─────────────────────────────────────────────────────────────────
+function showResultSummary(total, pass, fail, warn) {
+  const el = document.getElementById('result-summary');
+  el.style.display = '';
+  document.getElementById('rs-total').textContent = total;
+  document.getElementById('rs-pass').textContent = pass;
+  document.getElementById('rs-fail').textContent = fail;
+  document.getElementById('rs-warn').textContent = warn;
+}
+function hideResultSummary() {
+  document.getElementById('result-summary').style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  DEVICE CONTROL
+// ═══════════════════════════════════════════════════════════════
+
+function getSelectedDevice() {
+  return document.getElementById('device-select').value;
+}
+
+// ── Modal helpers ────────────────────────────────────────────────
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// Close modal on backdrop click
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.classList.remove('open');
+  });
+});
+
+// ── Show result modal ────────────────────────────────────────────
+function showNSResult(title, subtitle, lines) {
+  document.getElementById('ns-result-title').textContent    = title;
+  document.getElementById('ns-result-subtitle').textContent = subtitle;
+  const box = document.getElementById('ns-result-content');
+  box.innerHTML = lines.map(({text, cls}) =>
+    `<span class="${cls || ''}">${escHtml(text)}</span>\n`
+  ).join('');
+  openModal('ns-result-modal');
+}
+
+// ── List Namespaces ──────────────────────────────────────────────
+async function ctrlListNS() {
+  const device = getSelectedDevice();
+  if (!device) return alert('Select a device first.');
+  const btn = document.getElementById('ctrl-list-ns');
+  btn.disabled = true;
+  btn.textContent = '⏳ Listing...';
+
+  try {
+    const r = await fetch('/api/ctrl/list-ns', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({device})
+    }).then(x => x.json());
+
+    const lines = [];
+    lines.push({text: `Device: ${device}`, cls: 'hd'});
+    lines.push({text: ''});
+
+    if (r.error) {
+      lines.push({text: '✘ ' + r.error, cls: 'err'});
+    } else if (r.namespaces && r.namespaces.length > 0) {
+      lines.push({text: `Found ${r.namespaces.length} namespace(s):`, cls: 'ok'});
+      r.namespaces.forEach(ns => {
+        lines.push({text: `  NSID ${ns.nsid}`, cls: 'ok'});
+        if (ns.size_gb)  lines.push({text: `    Size:     ${ns.size_gb} GB`, cls: 'mut'});
+        if (ns.lba_size) lines.push({text: `    LBA Size: ${ns.lba_size} B`, cls: 'mut'});
+        if (ns.fdp)      lines.push({text: `    FDP:      enabled`, cls: 'ok'});
+        lines.push({text: ''});
+      });
+    } else {
+      lines.push({text: 'No namespaces found.', cls: 'mut'});
+    }
+
+    if (r.raw) lines.push({text: r.raw, cls: 'mut'});
+    showNSResult('Namespace List', device, lines);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📋 List Namespaces';
+  }
+}
+
+// ── Delete All Namespaces ────────────────────────────────────────
+async function ctrlDeleteAllNS() {
+  const device = getSelectedDevice();
+  if (!device) return alert('Select a device first.');
+
+  const confirmed = confirm(
+    `⚠ WARNING\n\nThis will delete ALL namespaces on:\n${device}\n\n` +
+    `All data will be permanently lost. Continue?`
+  );
+  if (!confirmed) return;
+
+  const btn = document.getElementById('ctrl-del-ns');
+  btn.disabled = true;
+  btn.textContent = '⏳ Deleting...';
+
+  try {
+    const r = await fetch('/api/ctrl/delete-all-ns', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({device})
+    }).then(x => x.json());
+
+    const lines = [{text: `Device: ${device}`, cls: 'hd'}, {text: ''}];
+    if (r.error) {
+      lines.push({text: '✘ ' + r.error, cls: 'err'});
+    } else {
+      (r.results || []).forEach(res => {
+        const cls = res.success ? 'ok' : 'err';
+        const icon = res.success ? '✔' : '✘';
+        lines.push({text: `${icon} NSID ${res.nsid}: ${res.message}`, cls});
+      });
+      if (r.deleted === 0) lines.push({text: 'No namespaces to delete.', cls: 'mut'});
+    }
+    showNSResult('Delete All Namespaces', `${r.deleted ?? 0} deleted`, lines);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🗑 Delete All Namespaces';
+  }
+}
+
+// ── Create Namespace Modal ───────────────────────────────────────
+function openCreateNSModal() {
+  const device = getSelectedDevice();
+  if (!device) return alert('Select a device first.');
+  updateCmdPreview();
+  openModal('create-ns-modal');
+}
+
+// Live command preview
+const previewFields = ['ns-size','ns-cap','ns-flbas','ns-dps','ns-ruhs','ns-pids','ns-endg','ns-fdp-idx','ns-nmic'];
+previewFields.forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', updateCmdPreview);
+});
+
+function updateCmdPreview() {
+  const device = getSelectedDevice() || '<device>';
+  const size   = document.getElementById('ns-size').value   || '?';
+  const cap    = document.getElementById('ns-cap').value    || '?';
+  const flbas  = document.getElementById('ns-flbas').value  || '0';
+  const dps    = document.getElementById('ns-dps').value    || '0';
+  const ruhs   = document.getElementById('ns-ruhs').value   || '?';
+  const pids   = document.getElementById('ns-pids').value   || '?';
+  const endg   = document.getElementById('ns-endg').value   || '0';
+  const fdpidx = document.getElementById('ns-fdp-idx').value || '0';
+  const nmic   = document.getElementById('ns-nmic').value   || '0';
+
+  const createCmd =
+    `nvme create-ns ${device} \\\n` +
+    `  --nsze=${size} --ncap=${cap} \\\n` +
+    `  --flbas=${flbas} --dps=${dps} --nmic=${nmic} \\\n` +
+    `  --endg-id=${endg} --nphndls=${ruhs} \\\n` +
+    `  --anagrp-id=1`;
+
+  const attachCmd =
+    `nvme attach-ns ${device} \\\n` +
+    `  --namespace-id=<new-nsid> --controllers=0x1`;
+
+  document.getElementById('cmd-preview').textContent =
+    `# Step 1 — Create\n${createCmd}\n\n# Step 2 — Attach\n${attachCmd}`;
+}
+
+// ── Submit Create Namespace ──────────────────────────────────────
+async function submitCreateNS() {
+  const device = getSelectedDevice();
+  if (!device) return;
+
+  // Validate
+  let valid = true;
+  const required = ['ns-size','ns-cap','ns-ruhs','ns-pids'];
+  required.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el.value || parseInt(el.value) <= 0) {
+      el.classList.add('error');
+      valid = false;
+    } else {
+      el.classList.remove('error');
+    }
+  });
+  if (!valid) return;
+
+  const params = {
+    device,
+    nsze:    parseInt(document.getElementById('ns-size').value),
+    ncap:    parseInt(document.getElementById('ns-cap').value),
+    flbas:   parseInt(document.getElementById('ns-flbas').value),
+    dps:     parseInt(document.getElementById('ns-dps').value),
+    nmic:    parseInt(document.getElementById('ns-nmic').value),
+    nphndls: parseInt(document.getElementById('ns-ruhs').value),
+    npids:   parseInt(document.getElementById('ns-pids').value),
+    endg_id: parseInt(document.getElementById('ns-endg').value),
+    fdp_idx: parseInt(document.getElementById('ns-fdp-idx').value),
+  };
+
+  const btn = document.getElementById('create-ns-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Creating...';
+
+  try {
+    const r = await fetch('/api/ctrl/create-ns', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(params)
+    }).then(x => x.json());
+
+    closeModal('create-ns-modal');
+
+    const lines = [{text: `Device: ${device}`, cls: 'hd'}, {text: ''}];
+    if (r.error) {
+      lines.push({text: '✘ ' + r.error, cls: 'err'});
+      if (r.detail) lines.push({text: r.detail, cls: 'mut'});
+    } else {
+      lines.push({text: `✔ Namespace created — NSID: ${r.nsid}`, cls: 'ok'});
+      lines.push({text: ''});
+      if (r.attach_result) {
+        const ac = r.attach_success ? 'ok' : 'err';
+        const ai = r.attach_success ? '✔' : '✘';
+        lines.push({text: `${ai} Attach: ${r.attach_result}`, cls: ac});
+      }
+      if (r.commands) {
+        lines.push({text: ''});
+        lines.push({text: 'Commands executed:', cls: 'hd'});
+        r.commands.forEach(c => lines.push({text: '  ' + c, cls: 'mut'}));
+      }
+    }
+
+    showNSResult('Create Namespace', r.error ? 'Failed' : `NSID ${r.nsid} created & attached`, lines);
+    if (!r.error) refreshDevices();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Create & Attach';
+  }
+}
+
+init();
+</script>
+</body>
+</html>
