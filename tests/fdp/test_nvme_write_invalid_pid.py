@@ -32,7 +32,7 @@ class TestNVMeWriteInvalidPID(BaseTest):
         log(f"\nStep 2: Verifying handle 0x{self.INVALID_HANDLE:04x} is not a valid RUHS entry...")
         ruhs_result = driver.fdp_ruhs(ns=1)
         if ruhs_result["rc"] == 0:
-            ruhs = self._extract_ruhs(ruhs_result)
+            ruhs = driver.extract_ruhs(ruhs_result)
             valid_handles = [
                 str(r.get("phndl", r.get("PlacementHandle", r.get("ruhid", ""))))
                 for r in ruhs

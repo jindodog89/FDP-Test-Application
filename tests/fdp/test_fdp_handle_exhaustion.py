@@ -37,7 +37,7 @@ class TestFDPHandleCapacityExhaustion(BaseTest):
         if ruhs_result["rc"] != 0:
             return TestResult(TestStatus.FAIL, f"Cannot read RUHS: {ruhs_result['stderr'].strip()}")
 
-        ruhs = self._extract_ruhs(ruhs_result)
+        ruhs = driver.extract_ruhs(ruhs_result)
         handle = self._find_handle(ruhs, p["placement_handle"])
         if handle is None:
             return TestResult(TestStatus.FAIL, f"Handle {p['placement_handle']} not found in RUHS")
@@ -95,7 +95,7 @@ class TestFDPHandleCapacityExhaustion(BaseTest):
             if iteration % max(1, estimated_writes // 10) == 0 or iteration == 1:
                 ruhs_check = driver.fdp_ruhs(ns=p["namespace"])
                 if ruhs_check["rc"] == 0:
-                    ruhs_cur = self._extract_ruhs(ruhs_check)
+                    ruhs_cur = driver.extract_ruhs(ruhs_check)
                     h = self._find_handle(ruhs_cur, p["placement_handle"])
                     if h:
                         cur_cap = int(h.get("ruamw", h.get("RUAMWSectors", 0)))
@@ -117,7 +117,7 @@ class TestFDPHandleCapacityExhaustion(BaseTest):
         final_ruhs_result = driver.fdp_ruhs(ns=p["namespace"])
         final_cap = None
         if final_ruhs_result["rc"] == 0:
-            final_ruhs = self._extract_ruhs(final_ruhs_result)
+            final_ruhs = driver.extract_ruhs(final_ruhs_result)
             final_handle = self._find_handle(final_ruhs, p["placement_handle"])
             if final_handle:
                 final_cap = int(final_handle.get("ruamw", final_handle.get("RUAMWSectors", 0)))

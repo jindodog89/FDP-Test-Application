@@ -9,7 +9,7 @@ class TestPlacementIDs(BaseTest):
 
     def run(self, driver, log) -> TestResult:
         log("Reading FDP placement handles and usage stats...")
-        result = driver.get_fdp_placement_ids(namespace=1)
+        result = driver.get_fdp_placement_ids(endgrp=1)
 
         if "error" in result:
             return TestResult(TestStatus.FAIL, f"Could not read placement IDs: {result['error']}")

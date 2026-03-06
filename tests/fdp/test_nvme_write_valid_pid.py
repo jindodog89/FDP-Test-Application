@@ -28,7 +28,7 @@ class TestNVMeWriteValidPID(BaseTest):
                 f"Cannot read RUHS — is FDP enabled? {ruhs_result['stderr'].strip()}"
             )
 
-        ruhs_before = self._extract_ruhs(ruhs_result)
+        ruhs_before = driver.extract_ruhs(ruhs_result)
         if not ruhs_before:
             return TestResult(TestStatus.FAIL, "No reclaim unit handles found in RUHS response")
 
@@ -79,7 +79,7 @@ class TestNVMeWriteValidPID(BaseTest):
         if ruhs_after_result["rc"] != 0:
             return TestResult(TestStatus.WARN, "Write succeeded but could not re-read RUHS to verify capacity")
 
-        ruhs_after = self._extract_ruhs(ruhs_after_result)
+        ruhs_after = driver.extract_ruhs(ruhs_after_result)
         handle_after = self._find_handle(ruhs_after, phndl)
 
         if handle_after is None:
@@ -109,16 +109,6 @@ class TestNVMeWriteValidPID(BaseTest):
             )
 
     # ── Helpers ──────────────────────────────────────────────────────────────
-
-    def _extract_ruhs(self, result: dict) -> list:
-        data = result.get("data", {})
-        if isinstance(data, list):
-            return data
-        if isinstance(data, dict):
-            for key in ("ruhs", "ReclaimUnitHandles", "ruhsd", "reclaim_unit_handle_descriptors"):
-                if key in data:
-                    return data[key]
-        return []
 
     def _find_handle(self, ruhs: list, phndl) -> dict:
         for ruh in ruhs:

@@ -124,27 +124,27 @@ class NVMeCliDriver(BaseNVMeDriver):
 
     # ── FDP Reclaim Unit Handle Usage (RUHU) log ──────────────────────────────
 
-    def get_fdp_placement_ids(self, namespace: int = 1) -> dict:
+    def get_fdp_placement_ids(self, endgrp: int = 1) -> dict:
         """
-        Reclaim Unit Handle Usage log (Log ID 0x21) — per namespace.
-        Command: nvme fdp usage <dev> -n <nsid>
+        Reclaim Unit Handle Usage log (Log ID 0x21) — endurance group scoped.
+        Command: nvme fdp usage <dev> -e <endgrp>
         """
-        return self.run_cmd(["fdp", "usage", self.device, "-n", str(namespace)])
+        return self.run_cmd(["fdp", "usage", self.device, "-e", str(endgrp)])
 
-    def fdp_usage(self, ns: int = 1) -> dict:
-        return self.get_fdp_placement_ids(ns)
+    def fdp_usage(self, endgrp: int = 1) -> dict:
+        return self.get_fdp_placement_ids(endgrp)
 
     # ── FDP Events log ────────────────────────────────────────────────────────
 
-    def get_fdp_events(self, namespace: int = 1) -> dict:
+    def get_fdp_events(self, endgrp: int = 1) -> dict:
         """
-        FDP Events log page (Log ID 0x23) — per namespace.
-        Command: nvme fdp events <dev> -n <nsid>
+        FDP Events log page (Log ID 0x23) — endurance group scoped.
+        Command: nvme fdp events <dev> -e <endgrp>
         """
-        return self.run_cmd(["fdp", "events", self.device, "-n", str(namespace)])
+        return self.run_cmd(["fdp", "events", self.device, "-e", str(endgrp)])
 
-    def fdp_events(self, ns: int = 1) -> dict:
-        return self.get_fdp_events(ns)
+    def fdp_events(self, endgrp: int = 1) -> dict:
+        return self.get_fdp_events(endgrp)
 
     # ── IO Management ─────────────────────────────────────────────────────────
 
@@ -223,3 +223,87 @@ class NVMeCliDriver(BaseNVMeDriver):
         if read:
             args.append("--read")
         return self.run_cmd(args)
+    
+    def extract_ruhs(self, result: dict) -> list:
+        """
+        Parse a RUHS command result dict into a flat list of handle entries.
+        Override in subclasses if the backend returns a different structure.
+        """
+        data = result.get("data", {})
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict):
+            for key in ("ruhid", "ruhs", "ReclaimUnitHandles", "ruhsd",
+                        "reclaim_unit_handle_descriptors"):
+                if key in data:
+                    val = data[key]
+                    return val if isinstance(val, list) else [val]
+        return []
+    
+    # ── FDP Statistics log ────────────────────────────────────────────────────
+
+    def get_fdp_stats(self, endgrp: int = 1) -> dict:
+        """
+        FDP Statistics log page (Log ID 0x22) — endurance group scoped.
+        Command: nvme fdp stats <dev> -e <endgrp>
+        Fields include: hbmw (host bytes media written), mbmw (media bytes
+        media written), mbe (media bytes erased).
+        """
+        return self.run_cmd(["fdp", "stats", self.device, "-e", str(endgrp)])
+
+    def fdp_stats(self, endgrp: int = 1) -> dict:
+        return self.get_fdp_stats(endgrp)
+
+    # ── Controller / subsystem reset ─────────────────────────────────────────
+
+    def controller_reset(self) -> dict:
+        """nvme reset <dev> — triggers CC.EN=0 then CC.EN=1 via kernel driver."""
+        return self.run_cmd(["reset", self.device], json_out=False)
+
+    def subsystem_reset(self) -> dict:
+        """nvme subsystem-reset <dev> — NVM Subsystem Reset (NSSR)."""
+        return self.run_cmd(["subsystem-reset", self.device], json_out=False)
+
+    def ns_rescan(self) -> dict:
+        """nvme ns-rescan <dev> — rescan namespaces after reset."""
+        return self.run_cmd(["ns-rescan", self.device], json_out=False)
+
+    # ── Directive commands ────────────────────────────────────────────────────
+
+    def dir_receive(self, dir_type: int, dir_oper: int,
+                    namespace: int = 1, data_len: int = 4096,
+                    dir_spec: int = 0) -> dict:
+        """
+        Directive Receive admin command.
+          dir_type 0x00, dir_oper 0x01 = Identify (returns supported directives)
+          dir_type 0x02, dir_oper 0x01 = Data Placement Return Parameters
+        Command: nvme dir-receive <dev> -D <type> -O <oper> -n <ns>
+        """
+        return self.run_cmd([
+            "dir-receive", self.device,
+            f"--namespace-id={namespace}",
+            f"--dir-type={dir_type}",
+            f"--dir-oper={dir_oper}",
+            f"--dir-spec={dir_spec}",
+            f"--data-len={data_len}",
+        ])
+
+    def dir_send(self, dir_type: int, dir_oper: int,
+                 namespace: int = 1, dir_spec: int = 0,
+                 data_len: int = 0) -> dict:
+        """
+        Directive Send admin command.
+          dir_type 0x00, dir_oper 0x01 = Enable Directive
+          dir_type 0x00, dir_oper 0x02 = Disable Directive
+        Command: nvme dir-send <dev> -D <type> -O <oper> -n <ns>
+        """
+        args = [
+            "dir-send", self.device,
+            f"--namespace-id={namespace}",
+            f"--dir-type={dir_type}",
+            f"--dir-oper={dir_oper}",
+            f"--dir-spec={dir_spec}",
+        ]
+        if data_len:
+            args.append(f"--data-len={data_len}")
+        return self.run_cmd(args, json_out=False)

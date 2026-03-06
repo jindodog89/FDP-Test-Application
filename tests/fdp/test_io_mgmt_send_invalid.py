@@ -26,7 +26,7 @@ class TestIOMgmtSendInvalid(BaseTest):
         log(f"Step 1: Confirming handle 0x{self.INVALID_HANDLE:04x} is not valid...")
         ruhs_result = driver.fdp_ruhs(ns=1)
         if ruhs_result["rc"] == 0:
-            ruhs = self._extract_ruhs(ruhs_result)
+            ruhs = driver.extract_ruhs(ruhs_result)
             valid = [str(r.get("phndl", r.get("PlacementHandle", r.get("ruhid", "")))) for r in ruhs]
             log(f"  Valid handles: {valid}")
             if str(self.INVALID_HANDLE) in valid:

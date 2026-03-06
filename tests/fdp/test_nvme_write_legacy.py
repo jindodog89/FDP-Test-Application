@@ -30,7 +30,7 @@ class TestNVMeWriteLegacy(BaseTest):
                 f"Cannot read RUHS: {ruhs_result['stderr'].strip()}"
             )
 
-        ruhs = self._extract_ruhs(ruhs_result)
+        ruhs = driver.extract_ruhs(ruhs_result)
         if not ruhs:
             return TestResult(TestStatus.FAIL, "No reclaim unit handles found in RUHS")
 
@@ -83,7 +83,7 @@ class TestNVMeWriteLegacy(BaseTest):
                 "Legacy write succeeded but RUHS could not be re-read to verify routing"
             )
 
-        ruhs_after = self._extract_ruhs(ruhs_after_result)
+        ruhs_after = driver.extract_ruhs(ruhs_after_result)
         handle0_after = self._find_handle(ruhs_after, 0)
 
         if handle0_after is None:

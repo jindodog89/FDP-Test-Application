@@ -50,7 +50,7 @@ class TestFDPEndurance(BaseTest):
         # ── Step 2: Read RUHS baseline ────────────────────────────────────────
         log("\nStep 2: Reading RUHS baseline...")
         ruhs_before_result = driver.fdp_ruhs(ns=p["namespace"])
-        ruhs_before = self._extract_ruhs(ruhs_before_result) if ruhs_before_result["rc"] == 0 else []
+        ruhs_before = driver.extract_ruhs(ruhs_before_result) if ruhs_before_result["rc"] == 0 else []
         total_cap_before = sum(
             int(r.get("ruamw", r.get("RUAMWSectors", 0))) for r in ruhs_before
         )
@@ -164,7 +164,7 @@ filename={ns_dev}
 
         # ── Step 7: Read RUHS after for capacity delta ────────────────────────
         ruhs_after_result = driver.fdp_ruhs(ns=p["namespace"])
-        ruhs_after = self._extract_ruhs(ruhs_after_result) if ruhs_after_result["rc"] == 0 else []
+        ruhs_after = driver.extract_ruhs(ruhs_after_result) if ruhs_after_result["rc"] == 0 else []
         total_cap_after = sum(int(r.get("ruamw", r.get("RUAMWSectors", 0))) for r in ruhs_after)
         cap_delta = total_cap_before - total_cap_after
         log(f"  Total RUHS capacity consumed: {cap_delta:,} sectors")

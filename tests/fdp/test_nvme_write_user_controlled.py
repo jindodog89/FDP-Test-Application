@@ -51,7 +51,7 @@ class TestNVMeWriteUserControlled(BaseTest):
         log(f"\nVerifying placement handle {p['placement_handle']} exists in RUHS...")
         ruhs_result = driver.fdp_ruhs(ns=p["namespace"])
         if ruhs_result["rc"] == 0:
-            ruhs = self._extract_ruhs(ruhs_result)
+            ruhs = driver.extract_ruhs(ruhs_result)
             handles = [
                 str(r.get("phndl", r.get("PlacementHandle", r.get("ruhid", ""))))
                 for r in ruhs

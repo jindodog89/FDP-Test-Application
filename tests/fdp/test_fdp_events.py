@@ -9,7 +9,7 @@ class TestFDPEvents(BaseTest):
 
     def run(self, driver, log) -> TestResult:
         log("Reading FDP events log...")
-        result = driver.get_fdp_events(namespace=1)
+        result = driver.get_fdp_events(endgrp=1)
 
         if "error" in result:
             return TestResult(TestStatus.FAIL, f"FDP events log unavailable: {result['error']}")

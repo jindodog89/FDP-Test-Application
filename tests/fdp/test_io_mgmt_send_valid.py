@@ -26,7 +26,7 @@ class TestIOMgmtSendValid(BaseTest):
         if ruhs_result["rc"] != 0:
             return TestResult(TestStatus.FAIL, f"Cannot read RUHS: {ruhs_result['stderr'].strip()}")
 
-        ruhs = self._extract_ruhs(ruhs_result)
+        ruhs = driver.extract_ruhs(ruhs_result)
         if len(ruhs) < 1:
             return TestResult(TestStatus.FAIL, "No reclaim unit handles available")
 
@@ -96,7 +96,7 @@ class TestIOMgmtSendValid(BaseTest):
                 "IO Management Send succeeded but RUHS could not be re-read to confirm update"
             )
 
-        ruhs_after = self._extract_ruhs(ruhs_after_result)
+        ruhs_after = driver.extract_ruhs(ruhs_after_result)
         handle_after = self._find_handle(ruhs_after, phndl)
 
         if handle_after is None:

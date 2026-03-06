@@ -39,7 +39,7 @@ class TestIOMgmtReceiveValid(BaseTest):
         if ruhs_before_result["rc"] != 0:
             return TestResult(TestStatus.FAIL, f"Cannot read RUHS: {ruhs_before_result['stderr'].strip()}")
 
-        ruhs_before = self._extract_ruhs(ruhs_before_result)
+        ruhs_before = driver.extract_ruhs(ruhs_before_result)
         if not ruhs_before:
             return TestResult(TestStatus.FAIL, "No reclaim unit handles found")
 
@@ -133,7 +133,7 @@ filename={ns_dev}
         if ruhs_after_result["rc"] != 0:
             return TestResult(TestStatus.WARN, "FIO completed but RUHS could not be re-read")
 
-        ruhs_after = self._extract_ruhs(ruhs_after_result)
+        ruhs_after = driver.extract_ruhs(ruhs_after_result)
         handle_after = self._find_handle(ruhs_after, p["placement_handle"])
         if handle_after is None:
             return TestResult(TestStatus.WARN, "FIO completed but handle not found in post-FIO RUHS")

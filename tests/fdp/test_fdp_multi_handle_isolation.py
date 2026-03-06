@@ -27,7 +27,7 @@ class TestFDPMultiHandleIsolation(BaseTest):
         if ruhs_result["rc"] != 0:
             return TestResult(TestStatus.FAIL, f"Cannot read RUHS: {ruhs_result['stderr'].strip()}")
 
-        ruhs = self._extract_ruhs(ruhs_result)
+        ruhs = driver.extract_ruhs(ruhs_result)
         if not ruhs:
             return TestResult(TestStatus.FAIL, "No reclaim unit handles found")
         if len(ruhs) < 2:
@@ -83,7 +83,7 @@ class TestFDPMultiHandleIsolation(BaseTest):
         if ruhs_after_result["rc"] != 0:
             return TestResult(TestStatus.WARN, "Writes completed but RUHS could not be re-read")
 
-        ruhs_after = self._extract_ruhs(ruhs_after_result)
+        ruhs_after = driver.extract_ruhs(ruhs_after_result)
         cap_after = {
             self._handle_id(r): int(r.get("ruamw", r.get("RUAMWSectors", 0)))
             for r in ruhs_after
