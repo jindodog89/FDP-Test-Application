@@ -126,13 +126,3 @@ class TestNVMeWriteInvalidPID(BaseTest):
             if str(etype) in ("1", "0x1", "invalid_pid", "InvalidPlacementIdentifier"):
                 count += 1
         return count
-
-    def _extract_ruhs(self, result: dict) -> list:
-        data = result.get("data", {})
-        if isinstance(data, list):
-            return data
-        if isinstance(data, dict):
-            for key in ("ruhs", "ReclaimUnitHandles", "ruhsd", "reclaim_unit_handle_descriptors"):
-                if key in data:
-                    return data[key]
-        return []

@@ -130,13 +130,3 @@ class TestFDPMultiHandleIsolation(BaseTest):
 
     def _handle_id(self, ruh: dict) -> int:
         return int(ruh.get("phndl", ruh.get("PlacementHandle", ruh.get("ruhid", 0))))
-
-    def _extract_ruhs(self, result: dict) -> list:
-        data = result.get("data", {})
-        if isinstance(data, list):
-            return data
-        if isinstance(data, dict):
-            for key in ("ruhs", "ReclaimUnitHandles", "ruhsd", "reclaim_unit_handle_descriptors"):
-                if key in data:
-                    return data[key]
-        return []

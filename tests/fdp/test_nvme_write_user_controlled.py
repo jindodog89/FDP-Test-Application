@@ -99,13 +99,3 @@ class TestNVMeWriteUserControlled(BaseTest):
             log(f"  Output: {result['stdout'].strip()}")
 
         return TestResult(TestStatus.PASS, "User-controlled NVMe write succeeded", details=p)
-
-    def _extract_ruhs(self, result: dict) -> list:
-        data = result.get("data", {})
-        if isinstance(data, list):
-            return data
-        if isinstance(data, dict):
-            for key in ("ruhs", "ReclaimUnitHandles", "ruhsd", "reclaim_unit_handle_descriptors"):
-                if key in data:
-                    return data[key]
-        return []
