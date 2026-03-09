@@ -96,13 +96,3 @@ class TestIOMgmtSendInvalid(BaseTest):
             f"Device accepted IO Management Send for invalid handle 0x{self.INVALID_HANDLE:04x} "
             f"without error — expected rejection"
         )
-
-    def _extract_ruhs(self, result: dict) -> list:
-        data = result.get("data", {})
-        if isinstance(data, list):
-            return data
-        if isinstance(data, dict):
-            for key in ("ruhs", "ReclaimUnitHandles", "ruhsd", "reclaim_unit_handle_descriptors"):
-                if key in data:
-                    return data[key]
-        return []

@@ -229,13 +229,3 @@ filename={ns_dev}
                     return int(val.get("lo", 0)) + (int(val.get("hi", 0)) << 64)
                 return int(val)
         return 0
-
-    def _extract_ruhs(self, result: dict) -> list:
-        data = result.get("data", {})
-        if isinstance(data, list):
-            return data
-        if isinstance(data, dict):
-            for key in ("ruhs", "ReclaimUnitHandles", "ruhsd", "reclaim_unit_handle_descriptors"):
-                if key in data:
-                    return data[key]
-        return []
