@@ -5,6 +5,10 @@ and confirm the reclaim unit capacity decreases afterward.
 """
 
 from tests.base_test import BaseTest, TestResult, TestStatus
+import os as _os
+_IO_FILES = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "IO_files")
+_DATA_FILE = _os.path.join(_IO_FILES, "randints_4k.txt")
+
 
 
 class TestNVMeWriteValidPID(BaseTest):
@@ -56,9 +60,9 @@ class TestNVMeWriteValidPID(BaseTest):
             "--start-block=0",
             "--block-count=0",       # 1 logical block (count is 0-based)
             "--data-size=4096",
-            "--data=/dev/zero",
-            f"--dtype=2",            # Directive Type 2 = FDP
-            f"--dspec={phndl}",      # Directive Specific = placement handle
+            "--data=" + _DATA_FILE,
+            f"--dir-type=2",            # Directive Type 2 = FDP
+            f"--dir-spec={phndl}",      # Directive Specific = placement handle
         ], json_out=False)
 
         log(f"Command: {write_result.get('cmd', '')}")

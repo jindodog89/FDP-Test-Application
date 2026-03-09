@@ -6,6 +6,10 @@ Verify handle 0 capacity decreases.
 """
 
 from tests.base_test import BaseTest, TestResult, TestStatus
+import os as _os
+_IO_FILES = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "IO_files")
+_DATA_FILE = _os.path.join(_IO_FILES, "randints_4k.txt")
+
 
 
 class TestNVMeWriteLegacy(BaseTest):
@@ -56,8 +60,8 @@ class TestNVMeWriteLegacy(BaseTest):
             "--start-block=0",
             "--block-count=0",
             "--data-size=4096",
-            "--data=/dev/zero",
-            "--dtype=0",          # Directive Type 0 = no directive (legacy)
+            "--data=" + _DATA_FILE,
+            "--dir-type=0",          # Directive Type 0 = no directive (legacy)
         ], json_out=False)
 
         log(f"Command: {result.get('cmd', '')}")

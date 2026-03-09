@@ -5,6 +5,10 @@ and data size via test parameters exposed in the UI.
 """
 
 from tests.base_test import BaseTest, TestResult, TestStatus
+import os as _os
+_IO_FILES = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "IO_files")
+_DATA_FILE = _os.path.join(_IO_FILES, "randints_4k.txt")
+
 
 
 class TestNVMeWriteUserControlled(BaseTest):
@@ -25,7 +29,7 @@ class TestNVMeWriteUserControlled(BaseTest):
         "block_count":   0,       # 0 = 1 block (nvme-cli uses 0-based count)
         "data_size":     4096,    # bytes
         "placement_handle": 0,
-        "data_source":   "/dev/zero",
+        "data_source":   _DATA_FILE,
     }
 
     def run(self, driver, log) -> TestResult:
@@ -76,8 +80,8 @@ class TestNVMeWriteUserControlled(BaseTest):
             f"--block-count={p['block_count']}",
             f"--data-size={p['data_size']}",
             f"--data={p['data_source']}",
-            "--dtype=2",                          # FDP directive
-            f"--dspec={p['placement_handle']}",
+            "--dir-type=2",                          # FDP directive
+            f"--dir-spec={p['placement_handle']}",
         ], json_out=False)
 
         log(f"Command: {result.get('cmd', '')}")
@@ -99,3 +103,4 @@ class TestNVMeWriteUserControlled(BaseTest):
             log(f"  Output: {result['stdout'].strip()}")
 
         return TestResult(TestStatus.PASS, "User-controlled NVMe write succeeded", details=p)
+

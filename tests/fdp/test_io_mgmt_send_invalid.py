@@ -96,3 +96,4 @@ class TestIOMgmtSendInvalid(BaseTest):
             f"Device accepted IO Management Send for invalid handle 0x{self.INVALID_HANDLE:04x} "
             f"without error — expected rejection"
         )
+

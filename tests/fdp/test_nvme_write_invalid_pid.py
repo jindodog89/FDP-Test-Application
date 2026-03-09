@@ -5,6 +5,10 @@ that the device logs an Invalid Placement Identifier event (FDP event type 1).
 """
 
 from tests.base_test import BaseTest, TestResult, TestStatus
+import os as _os
+_IO_FILES = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "IO_files")
+_DATA_FILE = _os.path.join(_IO_FILES, "randints_4k.txt")
+
 
 
 class TestNVMeWriteInvalidPID(BaseTest):
@@ -56,9 +60,9 @@ class TestNVMeWriteInvalidPID(BaseTest):
             "--start-block=0",
             "--block-count=0",
             "--data-size=4096",
-            "--data=/dev/zero",
-            "--dtype=2",
-            f"--dspec={self.INVALID_HANDLE}",
+            "--data=" + _DATA_FILE,
+            "--dir-type=2",
+            f"--dir-spec={self.INVALID_HANDLE}",
         ], json_out=False)
 
         log(f"Command: {result.get('cmd', '')}")
@@ -126,3 +130,4 @@ class TestNVMeWriteInvalidPID(BaseTest):
             if str(etype) in ("1", "0x1", "invalid_pid", "InvalidPlacementIdentifier"):
                 count += 1
         return count
+

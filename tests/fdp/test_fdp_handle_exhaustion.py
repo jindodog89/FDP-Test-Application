@@ -7,6 +7,10 @@ or returns an appropriate status. Tests the handle rotation/wraparound behavior.
 
 import subprocess
 from tests.base_test import BaseTest, TestResult, TestStatus
+import os as _os
+_IO_FILES = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "IO_files")
+_DATA_FILE = _os.path.join(_IO_FILES, "randints_4k.txt")
+
 
 
 class TestFDPHandleCapacityExhaustion(BaseTest):
@@ -75,9 +79,9 @@ class TestFDPHandleCapacityExhaustion(BaseTest):
                 "--start-block=0",
                 "--block-count=0",
                 f"--data-size={p['block_size_bytes']}",
-                "--data=/dev/zero",
-                "--dtype=2",
-                f"--dspec={p['placement_handle']}",
+                "--data=" + _DATA_FILE,
+                "--dir-type=2",
+                f"--dir-spec={p['placement_handle']}",
             ], json_out=False)
 
             iteration += 1

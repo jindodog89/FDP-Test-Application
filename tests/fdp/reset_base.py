@@ -427,7 +427,7 @@ class ResetTestBase:
         finally:
             os.unlink(job_path)
 
-    # ── PH → RUH mapping snapshot ─────────────────────────────────────────────
+    # ── RUHS parsing ──────────────────────────────────────────────────────────
 
     def _read_ph_ruh_mapping(self, driver, log, namespace: int = 1) -> list[dict]:
         """

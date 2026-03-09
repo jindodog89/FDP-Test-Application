@@ -6,31 +6,71 @@
 <title>NVMe FDP Test Tool</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
 <style>
+/* ── Design tokens ──────────────────────────────────────────────────────── */
 :root {
-  --bg: #0f1117;
-  --surface: #1a1d27;
-  --surface2: #22263a;
-  --border: #2e3350;
-  --accent: #4f8ef7;
-  --accent2: #7c3aed;
-  --green: #22c55e;
-  --red: #ef4444;
-  --yellow: #f59e0b;
-  --text: #e2e8f0;
-  --muted: #64748b;
-}
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  --bg:        #0f1117;
+  --surface:   #1a1d27;
+  --surface2:  #22263a;
+  --surface3:  #2a2f45;
+  --border:    #2e3350;
+  --accent:    #4f8ef7;
+  --accent2:   #7c3aed;
+  --green:     #22c55e;
+  --red:       #ef4444;
+  --yellow:    #f59e0b;
+  --text:      #e2e8f0;
+  --muted:     #64748b;
 
-/* Header */
-header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 20px; display: flex; align-items: center; gap: 16px; }
+  /* resizable panel widths (updated by JS) */
+  --lib-w:     300px;
+  --log-w:     360px;
+}
+
+/* ── Reset ──────────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  user-select: none; /* prevent text selection during resize drags */
+}
+body.resizing { cursor: col-resize !important; }
+body.resizing * { pointer-events: none !important; }
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+  z-index: 10;
+}
 .logo { display: flex; align-items: center; gap: 10px; }
-.logo-icon { width: 32px; height: 32px; background: linear-gradient(135deg, var(--accent), var(--accent2)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.logo-icon {
+  width: 32px; height: 32px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+}
 .logo h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
 .logo span { font-size: 12px; color: var(--muted); }
 .header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
-.device-select { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; }
-.btn { padding: 7px 16px; border-radius: 6px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+.device-select {
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer;
+}
+.btn {
+  padding: 7px 16px; border-radius: 6px; border: none;
+  font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+}
 .btn-primary { background: var(--accent); color: white; }
 .btn-primary:hover { background: #3d7ef5; }
 .btn-primary:disabled { background: var(--surface2); color: var(--muted); cursor: not-allowed; }
@@ -42,282 +82,416 @@ header { background: var(--surface); border-bottom: 1px solid var(--border); pad
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
 .status-dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); }
 
-/* Layout */
-.main { display: grid; grid-template-columns: 280px 1fr 340px; flex: 1; overflow: hidden; gap: 0; }
+/* ── Three-pane layout ──────────────────────────────────────────────────── */
+.main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
 
-/* Panel base */
-.panel { display: flex; flex-direction: column; border-right: 1px solid var(--border); overflow: hidden; }
-.panel:last-child { border-right: none; }
-.panel-header { padding: 12px 16px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
-.panel-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); }
-.panel-body { flex: 1; overflow-y: auto; padding: 12px; }
+/* ── Resize handles ─────────────────────────────────────────────────────── */
+.resize-handle {
+  width: 5px;
+  flex-shrink: 0;
+  background: var(--border);
+  cursor: col-resize;
+  position: relative;
+  transition: background 0.15s;
+  z-index: 5;
+}
+.resize-handle:hover,
+.resize-handle.active { background: var(--accent); }
+.resize-handle::after {
+  content: '';
+  position: absolute;
+  inset: 0 -3px;   /* wider hit area */
+}
+
+/* ── Panel base ─────────────────────────────────────────────────────────── */
+.panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 200px;
+}
+#panel-library { width: var(--lib-w); flex-shrink: 0; border-right: none; }
+#panel-queue   { flex: 1; min-width: 240px; }
+#panel-log     { width: var(--log-w); flex-shrink: 0; border-left: 1px solid var(--border); }
+
+.panel-header {
+  padding: 10px 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  gap: 8px;
+}
+.panel-title {
+  font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.8px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.panel-body { flex: 1; overflow-y: auto; padding: 10px; min-height: 0; }
 .panel-body::-webkit-scrollbar { width: 4px; }
 .panel-body::-webkit-scrollbar-track { background: transparent; }
 .panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
-/* Test Cards */
+/* ── LEFT PANEL — search + category tabs ───────────────────────────────── */
+.lib-search-wrap {
+  padding: 8px 10px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.lib-search {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 6px 10px 6px 30px;
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.lib-search:focus { border-color: var(--accent); }
+.lib-search-icon {
+  position: absolute;
+  left: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-size: 13px;
+  pointer-events: none;
+}
+.lib-search-container { position: relative; }
+
+/* Category tab bar */
+.cat-tabs {
+  display: flex;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+.cat-tabs::-webkit-scrollbar { display: none; }
+.cat-tab {
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  user-select: none;
+}
+.cat-tab:hover { color: var(--text); }
+.cat-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.cat-tab .tab-count {
+  background: var(--surface2);
+  border-radius: 10px;
+  padding: 1px 5px;
+  font-size: 10px;
+  color: var(--muted);
+  min-width: 18px;
+  text-align: center;
+}
+.cat-tab.active .tab-count { background: rgba(79,142,247,0.2); color: var(--accent); }
+
+/* Search results strip */
+.search-results-label {
+  font-size: 10px;
+  color: var(--muted);
+  padding: 6px 4px 2px;
+  font-style: italic;
+  display: none;
+}
+
+/* ── Test cards in library ──────────────────────────────────────────────── */
 .test-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 10px 12px;
-  margin-bottom: 8px;
+  padding: 9px 11px;
+  margin-bottom: 6px;
   cursor: grab;
-  transition: all 0.15s;
+  transition: border-color 0.15s, background 0.15s;
   user-select: none;
 }
 .test-card:hover { border-color: var(--accent); background: var(--surface2); }
 .test-card.dragging { opacity: 0.4; cursor: grabbing; }
-.test-card.drag-over { border-color: var(--accent); background: var(--surface2); transform: scale(1.02); }
 .test-card-header { display: flex; align-items: flex-start; gap: 8px; }
-.test-card-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+.test-card-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
 .test-card-info { flex: 1; min-width: 0; }
-.test-card-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.test-card-desc { font-size: 11px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
-.test-card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-.tag { font-size: 10px; padding: 2px 6px; border-radius: 10px; background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
-.cat-badge { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 600; }
-.cat-Basic { background: rgba(79,142,247,0.15); color: var(--accent); }
-.cat-Placement { background: rgba(124,58,237,0.15); color: #a78bfa; }
-.cat-Reclaim { background: rgba(34,197,94,0.15); color: var(--green); }
-.cat-Events { background: rgba(245,158,11,0.15); color: var(--yellow); }
+.test-card-name {
+  font-size: 12px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.test-card-desc {
+  font-size: 11px; color: var(--muted);
+  margin-top: 2px; line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.test-card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.tag {
+  font-size: 10px; padding: 1px 5px; border-radius: 8px;
+  background: var(--surface2); color: var(--muted); border: 1px solid var(--border);
+}
 
-/* Category group */
-.cat-group-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin: 12px 0 6px; padding-left: 4px; }
-.cat-group-label:first-child { margin-top: 0; }
+/* Category colour pills */
+.cat-badge { font-size: 10px; padding: 2px 6px; border-radius: 8px; font-weight: 600; white-space: nowrap; }
+.cat-Basic    { background: rgba(79,142,247,0.15);  color: var(--accent);  }
+.cat-IO       { background: rgba(124,58,237,0.18);  color: #a78bfa; }
+.cat-Reset    { background: rgba(239,68,68,0.15);   color: #f87171; }
+.cat-Endurance{ background: rgba(34,197,94,0.15);   color: var(--green); }
+.cat-Placement{ background: rgba(245,158,11,0.15);  color: var(--yellow); }
+.cat-Reclaim  { background: rgba(34,197,94,0.15);   color: var(--green); }
+.cat-Events   { background: rgba(245,158,11,0.15);  color: var(--yellow); }
+.cat-General  { background: rgba(100,116,139,0.2);  color: var(--muted); }
 
-/* Execution Zone */
+/* Group header (for "All" tab view) */
+.lib-group-header {
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.9px;
+  color: var(--muted);
+  padding: 10px 4px 5px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.lib-group-header:first-child { padding-top: 2px; }
+
+/* Empty state */
+.lib-empty {
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 30px 16px;
+  line-height: 1.8;
+}
+
+/* ── CENTER PANEL — execution queue ─────────────────────────────────────── */
 .exec-zone { display: flex; flex-direction: column; }
 .drop-zone {
   flex: 1;
   overflow-y: auto;
-  min-height: 120px;
+  min-height: 100px;
   border-radius: 8px;
   border: 2px dashed var(--border);
-  padding: 10px;
-  transition: all 0.2s;
+  padding: 8px;
+  transition: border-color 0.2s, background 0.2s;
 }
 .drop-zone.drag-active { border-color: var(--accent); background: rgba(79,142,247,0.05); }
-.drop-zone-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--muted); gap: 8px; padding: 30px; text-align: center; }
+.drop-zone::-webkit-scrollbar { width: 4px; }
+.drop-zone::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.drop-zone-empty {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  height: 100%; color: var(--muted);
+  gap: 8px; padding: 30px; text-align: center;
+}
 .drop-zone-empty svg { opacity: 0.3; }
 
 .exec-item {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px 10px;
-  margin-bottom: 6px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: grab;
-  transition: all 0.15s;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px;
+  margin-bottom: 5px;
+  display: flex; align-items: center; gap: 8px;
+  cursor: grab; transition: all 0.12s;
 }
-.exec-item:hover { border-color: var(--border); background: var(--surface2); }
+.exec-item:hover { background: var(--surface2); }
 .exec-item.running { border-color: var(--accent); animation: pulse-border 1.5s infinite; }
-.exec-item.status-pass { border-color: var(--green); }
-.exec-item.status-fail { border-color: var(--red); }
-.exec-item.status-warn { border-color: var(--yellow); }
+.exec-item.status-pass  { border-color: var(--green); }
+.exec-item.status-fail  { border-color: var(--red); }
+.exec-item.status-warn  { border-color: var(--yellow); }
 .exec-item.status-error { border-color: var(--red); }
-@keyframes pulse-border { 0%,100% { box-shadow: 0 0 0 0 rgba(79,142,247,0); } 50% { box-shadow: 0 0 0 3px rgba(79,142,247,0.2); } }
-.exec-handle { color: var(--muted); font-size: 14px; cursor: grab; }
-.exec-name { flex: 1; font-size: 12px; font-weight: 500; }
-.exec-status { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
-.exec-status.idle { background: var(--surface2); }
-.exec-status.running { background: var(--accent); animation: spin 1s linear infinite; }
-.exec-status.status-pass { background: var(--green); }
-.exec-status.status-fail { background: var(--red); }
-.exec-status.status-warn { background: var(--yellow); }
+.exec-item.status-skip  { border-color: var(--muted); opacity: 0.7; }
+.exec-item.drop-above { border-top: 2px solid var(--accent); margin-top: -1px; }
+.exec-item.drop-below { border-bottom: 2px solid var(--accent); margin-bottom: -1px; }
+@keyframes pulse-border {
+  0%,100% { box-shadow: 0 0 0 0 rgba(79,142,247,0); }
+  50%      { box-shadow: 0 0 0 3px rgba(79,142,247,0.2); }
+}
+.exec-handle { color: var(--muted); font-size: 14px; cursor: grab; flex-shrink: 0; }
+.exec-icon { font-size: 14px; flex-shrink: 0; }
+.exec-name { flex: 1; font-size: 12px; font-weight: 500; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.exec-status {
+  width: 20px; height: 20px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; flex-shrink: 0;
+}
+.exec-status.idle       { background: var(--surface2); }
+.exec-status.running    { background: var(--accent); animation: spin 1s linear infinite; }
+.exec-status.status-pass  { background: var(--green); }
+.exec-status.status-fail  { background: var(--red); }
+.exec-status.status-warn  { background: var(--yellow); }
 .exec-status.status-error { background: var(--red); }
+.exec-status.status-skip  { background: var(--muted); }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-.exec-remove { background: none; border: none; color: var(--muted); cursor: pointer; padding: 2px 4px; border-radius: 4px; font-size: 14px; }
+.exec-remove {
+  background: none; border: none; color: var(--muted);
+  cursor: pointer; padding: 2px 5px; border-radius: 4px; font-size: 15px; flex-shrink: 0;
+}
 .exec-remove:hover { color: var(--red); background: rgba(239,68,68,0.1); }
 
-.exec-footer { padding: 10px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
-.exec-summary { display: flex; gap: 10px; font-size: 11px; }
+.exec-footer {
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.exec-summary { display: flex; gap: 12px; font-size: 11px; align-items: center; }
 .sum-item { display: flex; align-items: center; gap: 4px; color: var(--muted); }
-.sum-dot { width: 8px; height: 8px; border-radius: 50%; }
-.sum-dot.pass { background: var(--green); }
-.sum-dot.fail { background: var(--red); }
-.sum-dot.warn { background: var(--yellow); }
+.sum-dot { width: 7px; height: 7px; border-radius: 50%; }
+.sum-dot.pass  { background: var(--green); }
+.sum-dot.fail  { background: var(--red); }
+.sum-dot.warn  { background: var(--yellow); }
 
-/* Output Log */
-.output-panel { display: flex; flex-direction: column; }
-.log-container { flex: 1; overflow-y: auto; font-family: 'Cascadia Code', 'Fira Code', 'Courier New', monospace; font-size: 11.5px; line-height: 1.6; padding: 10px; background: #0a0c12; }
+/* ── RIGHT PANEL — output log ───────────────────────────────────────────── */
+.log-container {
+  flex: 1;
+  overflow-y: auto;
+  font-family: 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
+  font-size: 11.5px;
+  line-height: 1.65;
+  padding: 10px;
+  background: #0a0c12;
+  min-height: 0;
+}
+.log-container::-webkit-scrollbar { width: 4px; }
+.log-container::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 .log-line { margin: 1px 0; }
-.log-line .ts { color: #3d4a6b; margin-right: 6px; }
-.log-line.info .msg { color: #94a3b8; }
+.log-line .ts  { color: #3d4a6b; margin-right: 6px; }
+.log-line.info    .msg { color: #94a3b8; }
 .log-line.success .msg { color: var(--green); }
-.log-line.error .msg { color: var(--red); }
-.log-line.warn .msg { color: var(--yellow); }
-.log-line.accent .msg { color: var(--accent); font-weight: 600; }
+.log-line.error   .msg { color: var(--red); }
+.log-line.warn    .msg { color: var(--yellow); }
+.log-line.accent  .msg { color: var(--accent); font-weight: 600; }
 .log-line.heading .msg { color: #c4b5fd; font-weight: 700; }
-.result-summary { padding: 12px; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 8px; flex-shrink: 0; }
-.res-card { flex: 1; min-width: 60px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; text-align: center; }
+
+.result-summary {
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.res-card {
+  flex: 1; min-width: 55px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; padding: 8px 10px; text-align: center;
+}
 .res-card .num { font-size: 22px; font-weight: 800; line-height: 1; }
 .res-card .lbl { font-size: 10px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
-.res-card.pass .num { color: var(--green); }
-.res-card.fail .num { color: var(--red); }
-.res-card.warn .num { color: var(--yellow); }
+.res-card.pass  .num { color: var(--green); }
+.res-card.fail  .num { color: var(--red); }
+.res-card.warn  .num { color: var(--yellow); }
 .res-card.total .num { color: var(--text); }
 
-/* Scrollbars */
-.drop-zone::-webkit-scrollbar, .log-container::-webkit-scrollbar { width: 4px; }
-.drop-zone::-webkit-scrollbar-thumb, .log-container::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-
-.exec-item.drop-above {
-  border-top: 2px solid var(--accent);
-  margin-top: -1px;
-}
-
-.exec-item.drop-below {
-  border-bottom: 2px solid var(--accent);
-  margin-bottom: -1px;
-}
-
-/* ── Device Control Panel ───────────────────────────────────────── */
+/* ── Device Control bar ─────────────────────────────────────────────────── */
 .device-control {
   background: var(--surface);
   border-top: 1px solid var(--border);
-  padding: 10px 16px;
+  padding: 8px 16px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-shrink: 0;
   flex-wrap: wrap;
 }
 .device-control-label {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: var(--muted);
-  margin-right: 4px;
-  white-space: nowrap;
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.8px;
+  color: var(--muted); margin-right: 4px; white-space: nowrap;
 }
 .btn-control {
-  padding: 6px 13px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-  background: var(--surface2);
-  color: var(--text);
-  white-space: nowrap;
+  padding: 5px 12px; border-radius: 6px;
+  border: 1px solid var(--border); font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s;
+  background: var(--surface2); color: var(--text); white-space: nowrap;
 }
-.btn-control:hover  { border-color: var(--accent); color: var(--accent); }
-.btn-control.danger:hover { border-color: var(--red); color: var(--red); }
-.btn-control.create:hover { border-color: var(--green); color: var(--green); }
-.btn-control:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-control:hover        { border-color: var(--accent); color: var(--accent); }
+.btn-control.danger:hover { border-color: var(--red);    color: var(--red); }
+.btn-control.create:hover { border-color: var(--green);  color: var(--green); }
+.btn-control:disabled     { opacity: 0.4; cursor: not-allowed; }
 
-/* ── Modal overlay ──────────────────────────────────────────────── */
+/* ── Modals ─────────────────────────────────────────────────────────────── */
 .modal-overlay {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.7);
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.72);
   backdrop-filter: blur(4px);
-  z-index: 1000;
-  align-items: center;
-  justify-content: center;
+  z-index: 100;
+  align-items: center; justify-content: center;
 }
 .modal-overlay.open { display: flex; }
 .modal {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  width: 480px;
-  max-width: 95vw;
-  max-height: 90vh;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; width: 480px; max-width: 95vw; max-height: 90vh;
   overflow-y: auto;
   box-shadow: 0 24px 64px rgba(0,0,0,0.6);
-  animation: modal-in 0.2s ease;
+  animation: modal-in 0.18s ease;
 }
 @keyframes modal-in {
-  from { opacity: 0; transform: translateY(-12px) scale(0.97); }
-  to   { opacity: 1; transform: translateY(0)    scale(1); }
+  from { opacity: 0; transform: translateY(-10px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
 }
 .modal-header {
-  padding: 16px 20px 14px;
+  padding: 16px 20px 13px;
   border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
 }
-.modal-title { font-size: 15px; font-weight: 700; }
+.modal-title    { font-size: 15px; font-weight: 700; }
 .modal-subtitle { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .modal-close {
-  background: none;
-  border: none;
-  color: var(--muted);
-  font-size: 20px;
-  cursor: pointer;
-  line-height: 1;
-  padding: 2px 4px;
-  border-radius: 4px;
-  flex-shrink: 0;
+  background: none; border: none; color: var(--muted);
+  font-size: 20px; cursor: pointer; line-height: 1; padding: 2px 4px; border-radius: 4px;
 }
 .modal-close:hover { color: var(--text); background: var(--surface2); }
-.modal-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
-.modal-footer {
-  padding: 14px 20px;
-  border-top: 1px solid var(--border);
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
+.modal-body   { padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+.modal-footer { padding: 13px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
 
-/* ── Form fields ────────────────────────────────────────────────── */
-.field-group { display: flex; flex-direction: column; gap: 5px; }
-.field-row   { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.field-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+/* Form */
+.field-group  { display: flex; flex-direction: column; gap: 5px; }
+.field-row    { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.field-label  { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.field-hint   { font-size: 10px; color: var(--muted); opacity: 0.7; margin-top: 2px; }
+.field-input  {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 6px; color: var(--text); padding: 7px 10px;
+  font-size: 13px; width: 100%; transition: border-color 0.15s; outline: none;
 }
-.field-hint  { font-size: 10px; color: var(--muted); opacity: 0.7; margin-top: 2px; }
-.field-input {
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text);
-  padding: 7px 10px;
-  font-size: 13px;
-  width: 100%;
-  transition: border-color 0.15s;
-}
-.field-input:focus { outline: none; border-color: var(--accent); }
+.field-input:focus { border-color: var(--accent); }
 .field-input.error { border-color: var(--red); }
 select.field-input { cursor: pointer; }
 .section-divider {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: var(--accent);
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 2px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.8px; color: var(--accent);
+  padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 2px;
 }
-
-/* ── NS Results popup ───────────────────────────────────────────── */
 .ns-result-box {
-  background: #0a0c12;
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  background: #0a0c12; border: 1px solid var(--border); border-radius: 6px;
   padding: 10px 12px;
   font-family: 'Cascadia Code','Fira Code','Courier New',monospace;
-  font-size: 11px;
-  line-height: 1.7;
-  max-height: 260px;
-  overflow-y: auto;
-  white-space: pre-wrap;
-  word-break: break-all;
+  font-size: 11px; line-height: 1.7;
+  max-height: 260px; overflow-y: auto;
+  white-space: pre-wrap; word-break: break-all;
 }
 .ns-result-box .ok  { color: var(--green); }
 .ns-result-box .err { color: var(--red); }
@@ -327,6 +501,7 @@ select.field-input { cursor: pointer; }
 </head>
 <body>
 
+<!-- ═══ Header ═══════════════════════════════════════════════════════════ -->
 <header>
   <div class="logo">
     <div class="logo-icon">⚡</div>
@@ -338,61 +513,96 @@ select.field-input { cursor: pointer; }
   <div class="header-right">
     <div class="status-dot" id="conn-dot"></div>
     <select class="device-select" id="device-select">
-      <option value="">Loading devices...</option>
+      <option value="">Loading devices…</option>
     </select>
     <button class="btn btn-ghost btn-sm" onclick="refreshDevices()">↺ Refresh</button>
     <button class="btn btn-primary" id="run-btn" onclick="runTests()" disabled>▶ Run Tests</button>
-    <button class="btn btn-danger" id="stop-btn" onclick="stopTests()" style="display:none">■ Stop</button>
+    <button class="btn btn-danger"  id="stop-btn" onclick="stopTests()" style="display:none">■ Stop</button>
   </div>
 </header>
 
-<div class="main">
-  <!-- Left: Test Library -->
-  <div class="panel" id="test-library">
+<!-- ═══ Three-pane layout ═════════════════════════════════════════════════ -->
+<div class="main" id="main-layout">
+
+  <!-- ── LEFT: Test Library ────────────────────────────────────────────── -->
+  <div class="panel" id="panel-library">
+
+    <!-- Panel title row -->
     <div class="panel-header">
       <span class="panel-title">Test Library</span>
       <span id="test-count" style="font-size:11px;color:var(--muted)"></span>
     </div>
+
+    <!-- Search bar -->
+    <div class="lib-search-wrap">
+      <div class="lib-search-container">
+        <span class="lib-search-icon">🔍</span>
+        <input class="lib-search" id="lib-search"
+               type="search" placeholder="Search tests…"
+               autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+
+    <!-- Category tab bar: All / Basic / IO / Reset -->
+    <div class="cat-tabs" id="cat-tabs">
+      <div class="cat-tab active" data-cat="All"   onclick="switchTab('All')">All   <span class="tab-count" id="tc-All">0</span></div>
+      <div class="cat-tab"       data-cat="Basic"  onclick="switchTab('Basic')">🔍 Basic  <span class="tab-count" id="tc-Basic">0</span></div>
+      <div class="cat-tab"       data-cat="IO"     onclick="switchTab('IO')">⚙ IO  <span class="tab-count" id="tc-IO">0</span></div>
+      <div class="cat-tab"       data-cat="Reset"  onclick="switchTab('Reset')">🔄 Reset  <span class="tab-count" id="tc-Reset">0</span></div>
+    </div>
+
+    <!-- Search results info label -->
+    <div class="search-results-label" id="search-label"></div>
+
+    <!-- Scrollable test list -->
     <div class="panel-body" id="test-list">
-      <div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Loading tests...</div>
+      <div class="lib-empty">Loading tests…</div>
     </div>
   </div>
 
-  <!-- Center: Test Execution Zone -->
-  <div class="panel exec-zone">
+  <!-- Resize handle: library | queue -->
+  <div class="resize-handle" id="rh-left" title="Drag to resize"></div>
+
+  <!-- ── CENTER: Test Queue ─────────────────────────────────────────────── -->
+  <div class="panel exec-zone" id="panel-queue">
     <div class="panel-header">
-      <span class="panel-title">Test Execution Queue</span>
+      <span class="panel-title">Execution Queue</span>
       <div style="display:flex;gap:6px">
         <button class="btn btn-ghost btn-sm" onclick="clearQueue()">Clear</button>
-        <button class="btn btn-ghost btn-sm" onclick="addAllTests()">Add All</button>
+        <button class="btn btn-ghost btn-sm" onclick="addAllVisible()">Add All</button>
       </div>
     </div>
-    <div class="panel-body" style="display:flex;flex-direction:column;padding:10px;gap:8px;overflow:hidden">
+
+    <div class="panel-body" style="display:flex;flex-direction:column;padding:8px;gap:6px;overflow:hidden">
       <div id="drop-zone" class="drop-zone"
-        ondragover="onDragOver(event)"
-        ondragleave="onDragLeave(event)"
-        ondrop="onDrop(event)">
+           ondragover="onDragOver(event)"
+           ondragleave="onDragLeave(event)"
+           ondrop="onDrop(event)">
         <div class="drop-zone-empty" id="drop-empty">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M12 5v14M5 12l7 7 7-7"/>
           </svg>
           <div style="font-size:13px;font-weight:600">Drop tests here</div>
-          <div style="font-size:11px">Drag from the library or click "Add All"</div>
+          <div style="font-size:11px">Drag from library or click Add All</div>
         </div>
       </div>
     </div>
+
     <div class="exec-footer">
       <div class="exec-summary">
         <div class="sum-item"><div class="sum-dot pass"></div><span id="sum-pass">0 pass</span></div>
         <div class="sum-item"><div class="sum-dot fail"></div><span id="sum-fail">0 fail</span></div>
         <div class="sum-item"><div class="sum-dot warn"></div><span id="sum-warn">0 warn</span></div>
-        <div style="margin-left:auto;font-size:11px;color:var(--muted)" id="sum-total">0 tests queued</div>
+        <div style="margin-left:auto;font-size:11px;color:var(--muted)" id="sum-total">0 queued</div>
       </div>
     </div>
   </div>
 
-  <!-- Right: Output / Results -->
-  <div class="panel output-panel">
+  <!-- Resize handle: queue | log -->
+  <div class="resize-handle" id="rh-right" title="Drag to resize"></div>
+
+  <!-- ── RIGHT: Output Log ──────────────────────────────────────────────── -->
+  <div class="panel" id="panel-log">
     <div class="panel-header">
       <span class="panel-title">Test Output</span>
       <button class="btn btn-ghost btn-sm" onclick="clearLog()">Clear</button>
@@ -400,28 +610,23 @@ select.field-input { cursor: pointer; }
     <div class="log-container" id="log"></div>
     <div class="result-summary" id="result-summary" style="display:none">
       <div class="res-card total"><div class="num" id="rs-total">0</div><div class="lbl">Total</div></div>
-      <div class="res-card pass"><div class="num" id="rs-pass">0</div><div class="lbl">Pass</div></div>
-      <div class="res-card fail"><div class="num" id="rs-fail">0</div><div class="lbl">Fail</div></div>
-      <div class="res-card warn"><div class="num" id="rs-warn">0</div><div class="lbl">Warn</div></div>
+      <div class="res-card pass"> <div class="num" id="rs-pass">0</div> <div class="lbl">Pass</div></div>
+      <div class="res-card fail"> <div class="num" id="rs-fail">0</div> <div class="lbl">Fail</div></div>
+      <div class="res-card warn"> <div class="num" id="rs-warn">0</div> <div class="lbl">Warn</div></div>
     </div>
   </div>
-</div>
 
-<!-- ── Device Control Bar ──────────────────────────────────────── -->
-<div class="device-control" id="device-control-bar">
+</div><!-- /.main -->
+
+<!-- ═══ Device Control bar ═══════════════════════════════════════════════ -->
+<div class="device-control">
   <span class="device-control-label">Device Control</span>
-  <button class="btn-control" onclick="ctrlListNS()" id="ctrl-list-ns">
-    📋 List Namespaces
-  </button>
-  <button class="btn-control danger" onclick="ctrlDeleteAllNS()" id="ctrl-del-ns">
-    🗑 Delete All Namespaces
-  </button>
-  <button class="btn-control create" onclick="openCreateNSModal()" id="ctrl-create-ns">
-    ＋ Create Namespace
-  </button>
+  <button class="btn-control" onclick="ctrlListNS()" id="ctrl-list-ns">📋 List Namespaces</button>
+  <button class="btn-control danger" onclick="ctrlDeleteAllNS()" id="ctrl-del-ns">🗑 Delete All Namespaces</button>
+  <button class="btn-control create" onclick="openCreateNSModal()" id="ctrl-create-ns">＋ Create Namespace</button>
 </div>
 
-<!-- ── Namespace Results Modal ─────────────────────────────────── -->
+<!-- ═══ Namespace Result Modal ════════════════════════════════════════════ -->
 <div class="modal-overlay" id="ns-result-modal">
   <div class="modal" style="width:520px">
     <div class="modal-header">
@@ -440,7 +645,7 @@ select.field-input { cursor: pointer; }
   </div>
 </div>
 
-<!-- ── Create Namespace Modal ──────────────────────────────────── -->
+<!-- ═══ Create Namespace Modal ════════════════════════════════════════════ -->
 <div class="modal-overlay" id="create-ns-modal">
   <div class="modal">
     <div class="modal-header">
@@ -451,25 +656,19 @@ select.field-input { cursor: pointer; }
       <button class="modal-close" onclick="closeModal('create-ns-modal')">×</button>
     </div>
     <div class="modal-body">
-
-      <!-- Basic Parameters -->
       <div class="section-divider">Basic Parameters</div>
-
       <div class="field-row">
         <div class="field-group">
           <label class="field-label">Namespace Size (sectors)</label>
-          <input class="field-input" id="ns-size" type="number" min="1" value="10485760"
-                 placeholder="e.g. 10485760">
+          <input class="field-input" id="ns-size" type="number" min="1" value="10485760">
           <span class="field-hint">Total size in logical blocks</span>
         </div>
         <div class="field-group">
           <label class="field-label">Namespace Capacity (sectors)</label>
-          <input class="field-input" id="ns-cap" type="number" min="1" value="10485760"
-                 placeholder="e.g. 10485760">
+          <input class="field-input" id="ns-cap" type="number" min="1" value="10485760">
           <span class="field-hint">Usable capacity (≤ size)</span>
         </div>
       </div>
-
       <div class="field-row">
         <div class="field-group">
           <label class="field-label">Block Size (FLBAS)</label>
@@ -479,7 +678,6 @@ select.field-input { cursor: pointer; }
             <option value="4" selected>4 — 4096 B</option>
             <option value="5">5 — 4096 B + 8B meta</option>
           </select>
-          <span class="field-hint">Formatted LBA size index</span>
         </div>
         <div class="field-group">
           <label class="field-label">Data Protection (DPS)</label>
@@ -489,43 +687,21 @@ select.field-input { cursor: pointer; }
             <option value="2">2 — Type 2</option>
             <option value="3">3 — Type 3</option>
           </select>
-          <span class="field-hint">End-to-end data protection</span>
         </div>
       </div>
-
-      <!-- FDP Parameters -->
       <div class="section-divider" style="margin-top:4px">FDP Parameters</div>
-
       <div class="field-row">
         <div class="field-group">
           <label class="field-label">Reclaim Unit Handles</label>
-          <input class="field-input" id="ns-ruhs" type="number" min="1" max="128" value="8"
-                 placeholder="e.g. 8">
+          <input class="field-input" id="ns-ruhs" type="number" min="1" max="128" value="8">
           <span class="field-hint">Number of RU handles (1–128)</span>
         </div>
         <div class="field-group">
-          <label class="field-label">Placement IDs</label>
-          <input class="field-input" id="ns-pids" type="number" min="1" max="128" value="8"
-                 placeholder="e.g. 8">
-          <span class="field-hint">Number of placement IDs (1–128)</span>
-        </div>
-      </div>
-
-      <div class="field-row">
-        <div class="field-group">
           <label class="field-label">Endurance Group ID</label>
-          <input class="field-input" id="ns-endg" type="number" min="0" value="1"
-                 placeholder="e.g. 1">
+          <input class="field-input" id="ns-endg" type="number" min="0" value="1">
           <span class="field-hint">Endurance group to assign NS to</span>
         </div>
-        <div class="field-group">
-          <label class="field-label">FDP Config Index</label>
-          <input class="field-input" id="ns-fdp-idx" type="number" min="0" value="0"
-                 placeholder="e.g. 0">
-          <span class="field-hint">FDP configuration record index</span>
-        </div>
       </div>
-
       <div class="field-group">
         <label class="field-label">Namespace Sharing (NMIC)</label>
         <select class="field-input" id="ns-nmic">
@@ -533,34 +709,53 @@ select.field-input { cursor: pointer; }
           <option value="1">1 — Shared</option>
         </select>
       </div>
-
-      <!-- Preview -->
-      <div class="field-group" id="cmd-preview-group">
+      <div class="field-group">
         <label class="field-label">Command Preview</label>
         <div class="ns-result-box" id="cmd-preview" style="min-height:54px"></div>
       </div>
-
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost btn-sm" onclick="closeModal('create-ns-modal')">Cancel</button>
-      <button class="btn btn-primary" id="create-ns-btn" onclick="submitCreateNS()">
-        Create &amp; Attach
-      </button>
+      <button class="btn btn-primary" id="create-ns-btn" onclick="submitCreateNS()">Create &amp; Attach</button>
     </div>
   </div>
 </div>
 
+<!-- ═══════════════════════════ SCRIPT ════════════════════════════════════ -->
 <script>
 const socket = io();
-let availableTests = [];
-let queuedTests = []; // [{id, name, status}]
-let currentRunId = null;
-let draggingId = null;
-let draggingSource = null; // 'library' | 'queue'
-let dragOverQueueIdx = null;
-let draggingQueueIdx = null;   
 
-// ─── Socket events ──────────────────────────────────────────────────────────
+// ── State ──────────────────────────────────────────────────────────────────
+let availableTests  = [];
+let queuedTests     = [];   // [{id, name, category, status}]
+let currentRunId    = null;
+let activeTab       = 'All';
+let searchQuery     = '';
+
+// Drag state
+let draggingId        = null;
+let draggingSource    = null;   // 'library' | 'queue'
+let draggingQueueIdx  = null;
+
+// ── Category meta ──────────────────────────────────────────────────────────
+// Map every backend category to one of the three display groups
+const CAT_GROUP = {
+  'Basic':     'Basic',
+  'Placement': 'Basic',
+  'Reclaim':   'Basic',
+  'Events':    'Basic',
+  'General':   'Basic',
+  'IO':        'IO',
+  'Endurance': 'IO',
+  'Reset':     'Reset',
+};
+const CAT_ICON = {
+  Basic: '🔍', Placement: '📌', Reclaim: '♻', Events: '📋',
+  IO: '⚙', Endurance: '📈', Reset: '🔄', General: '🧪',
+};
+function groupOf(cat) { return CAT_GROUP[cat] || 'Basic'; }
+
+// ── Socket.IO ──────────────────────────────────────────────────────────────
 socket.on('connect', () => {
   document.getElementById('conn-dot').classList.add('connected');
   log('Connected to FDP Test Tool server', 'success');
@@ -569,178 +764,228 @@ socket.on('disconnect', () => {
   document.getElementById('conn-dot').classList.remove('connected');
   log('Disconnected from server', 'error');
 });
-
-socket.on('run_start', d => {
-  log(`▶ Starting run ${d.run_id} — ${d.total} test(s)`, 'accent');
-});
-socket.on('test_start', d => {
-  log(`\n◉ [${d.index + 1}] Running: ${d.name}`, 'heading');
-  updateQueueItemStatus(d.test_id, 'running');
-});
-socket.on('test_log', d => {
-  log('  ' + d.message, 'info');
-});
-socket.on('test_result', d => {
-  const icon = {pass:'✔', fail:'✘', warn:'⚠', error:'⚠', skip:'⏭'}[d.status] || '?';
-  const type = {pass:'success', fail:'error', warn:'warn', error:'error'}[d.status] || 'info';
-  log(`  ${icon} ${d.message}`, type);
-  updateQueueItemStatus(d.test_id, 'status-' + d.status);
+socket.on('run_start',    d => log(`▶ Starting run ${d.run_id} — ${d.total} test(s)`, 'accent'));
+socket.on('test_start',   d => { log(`\n◉ [${d.index+1}] Running: ${d.name}`, 'heading'); updateQueueStatus(d.test_id, 'running'); });
+socket.on('test_log',     d => log('  ' + d.message, 'info'));
+socket.on('test_result',  d => {
+  const ic = {pass:'✔',fail:'✘',warn:'⚠',error:'⚠',skip:'⏭'}[d.status]||'?';
+  const ty = {pass:'success',fail:'error',warn:'warn',error:'error'}[d.status]||'info';
+  log(`  ${ic} ${d.message}`, ty);
+  updateQueueStatus(d.test_id, 'status-'+d.status);
   updateSummary();
 });
 socket.on('run_complete', d => {
-  const r = d.results;
-  const pass = r.filter(x=>x.status==='pass').length;
-  const fail = r.filter(x=>x.status==='fail').length;
-  const warn = r.filter(x=>x.status==='warn').length;
-  log(`\n═══════════════════════════════════════`, 'info');
+  const r=d.results, pass=r.filter(x=>x.status==='pass').length,
+        fail=r.filter(x=>x.status==='fail').length, warn=r.filter(x=>x.status==='warn').length;
+  log('\n' + '═'.repeat(44), 'info');
   log(`Run complete: ${pass} pass / ${fail} fail / ${warn} warn`, pass===r.length?'success':'warn');
   showResultSummary(r.length, pass, fail, warn);
-  setRunning(false);
-  currentRunId = null;
+  setRunning(false); currentRunId = null;
 });
-socket.on('run_stopped', () => {
-  log('Run stopped by user', 'warn');
-  setRunning(false);
-  currentRunId = null;
-});
+socket.on('run_stopped',  () => { log('Run stopped by user', 'warn'); setRunning(false); currentRunId = null; });
 
-// ─── Init ────────────────────────────────────────────────────────────────────
+// ── Init ───────────────────────────────────────────────────────────────────
 async function init() {
-  await loadTests();
-  await refreshDevices();
+  await Promise.all([loadTests(), refreshDevices()]);
+  initResize();
 }
 
 async function loadTests() {
-  const r = await fetch('/api/tests').then(x=>x.json());
+  const r = await fetch('/api/tests').then(x => x.json());
   availableTests = r.tests || [];
-  document.getElementById('test-count').textContent = availableTests.length + ' tests';
-  renderTestLibrary();
+  updateTabCounts();
+  renderLibrary();
 }
 
 async function refreshDevices() {
-  const r = await fetch('/api/devices').then(x=>x.json());
+  const r = await fetch('/api/devices').then(x => x.json());
   const sel = document.getElementById('device-select');
   sel.innerHTML = '';
-  if (!r.devices || r.devices.length === 0) {
+  if (!r.devices?.length) {
     sel.innerHTML = '<option value="">No NVMe devices found</option>';
-    return;
+  } else {
+    r.devices.forEach(d => {
+      const o = document.createElement('option');
+      o.value = d.path;
+      o.textContent = `${d.path} — ${d.model} (${d.size_gb}GB)`;
+      sel.appendChild(o);
+    });
   }
-  r.devices.forEach(d => {
-    const o = document.createElement('option');
-    o.value = d.path;
-    o.textContent = `${d.path} — ${d.model} (${d.size_gb}GB)`;
-    sel.appendChild(o);
-  });
   updateRunButton();
 }
 
-// ─── Test Library Rendering ──────────────────────────────────────────────────
-function renderTestLibrary() {
+// ── Tab counts ─────────────────────────────────────────────────────────────
+function updateTabCounts() {
+  const counts = { All: availableTests.length, Basic: 0, IO: 0, Reset: 0 };
+  availableTests.forEach(t => {
+    const g = groupOf(t.category);
+    if (counts[g] !== undefined) counts[g]++;
+  });
+  Object.entries(counts).forEach(([k, v]) => {
+    const el = document.getElementById('tc-' + k);
+    if (el) el.textContent = v;
+  });
+  document.getElementById('test-count').textContent = availableTests.length + ' tests';
+}
+
+// ── Tab switching ──────────────────────────────────────────────────────────
+function switchTab(cat) {
+  activeTab = cat;
+  document.querySelectorAll('.cat-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.cat === cat);
+  });
+  // Clear search when switching tabs
+  document.getElementById('lib-search').value = '';
+  searchQuery = '';
+  renderLibrary();
+}
+
+// ── Search ─────────────────────────────────────────────────────────────────
+document.getElementById('lib-search').addEventListener('input', e => {
+  searchQuery = e.target.value.trim().toLowerCase();
+  // When searching, clear tab active state visually (show "All" effectively)
+  if (searchQuery) {
+    document.querySelectorAll('.cat-tab').forEach(t => t.classList.remove('active'));
+  } else {
+    switchTab(activeTab || 'All');
+    return;
+  }
+  renderLibrary();
+});
+
+// ── Render library ─────────────────────────────────────────────────────────
+function renderLibrary() {
   const container = document.getElementById('test-list');
+  const label     = document.getElementById('search-label');
   container.innerHTML = '';
 
-  const grouped = {};
-  availableTests.forEach(t => {
-    if (!grouped[t.category]) grouped[t.category] = [];
-    grouped[t.category].push(t);
-  });
+  // Filter by search query
+  let tests = availableTests;
+  if (searchQuery) {
+    tests = availableTests.filter(t =>
+      t.name.toLowerCase().includes(searchQuery) ||
+      t.description.toLowerCase().includes(searchQuery) ||
+      (t.tags||[]).some(tg => tg.toLowerCase().includes(searchQuery)) ||
+      t.category.toLowerCase().includes(searchQuery)
+    );
+    label.style.display = 'block';
+    label.textContent = tests.length
+      ? `${tests.length} result${tests.length!==1?'s':''} for "${document.getElementById('lib-search').value}"`
+      : `No results for "${document.getElementById('lib-search').value}"`;
+  } else {
+    label.style.display = 'none';
+    // Filter by active tab (group)
+    if (activeTab !== 'All') {
+      tests = availableTests.filter(t => groupOf(t.category) === activeTab);
+    }
+  }
 
-  const catIcons = { Basic: '🔍', Placement: '📍', Reclaim: '♻️', Events: '📋', General: '⚙️' };
+  if (!tests.length) {
+    container.innerHTML = `<div class="lib-empty">No tests found${searchQuery ? ' matching your search' : ''}.</div>`;
+    return;
+  }
 
-  Object.entries(grouped).forEach(([cat, tests]) => {
-    const label = document.createElement('div');
-    label.className = 'cat-group-label';
-    label.textContent = cat;
-    container.appendChild(label);
-
+  if (searchQuery || activeTab !== 'All') {
+    // Flat list when filtered
+    tests.forEach(t => container.appendChild(makeCard(t)));
+  } else {
+    // "All" tab: group by display category (Basic / IO / Reset)
+    const groups = { Basic: [], IO: [], Reset: [] };
     tests.forEach(t => {
-      const card = document.createElement('div');
-      card.className = 'test-card';
-      card.draggable = true;
-      card.dataset.testId = t.id;
-      card.innerHTML = `
-        <div class="test-card-header">
-          <div class="test-card-icon">${catIcons[t.category] || '🧪'}</div>
-          <div class="test-card-info">
-            <div class="test-card-name">${t.name}</div>
-            <div class="test-card-desc">${t.description}</div>
-          </div>
-          <span class="cat-badge cat-${t.category}">${t.category}</span>
-        </div>
-        <div class="test-card-tags">${(t.tags||[]).map(tg=>`<span class="tag">${tg}</span>`).join('')}</div>
-      `;
-      card.addEventListener('dragstart', e => onLibraryDragStart(e, t.id));
-      card.addEventListener('dragend', () => card.classList.remove('dragging'));
-      card.addEventListener('dblclick', () => addToQueue(t.id));
-      container.appendChild(card);
+      const g = groupOf(t.category);
+      (groups[g] = groups[g] || []).push(t);
     });
+    const groupMeta = {
+      Basic:  { icon: '🔍', label: 'Basic' },
+      IO:     { icon: '⚙',  label: 'IO' },
+      Reset:  { icon: '🔄', label: 'Reset' },
+    };
+    Object.entries(groups).forEach(([grp, items]) => {
+      if (!items.length) return;
+      const hdr = document.createElement('div');
+      hdr.className = 'lib-group-header';
+      hdr.innerHTML = `<span>${groupMeta[grp]?.icon || ''}</span><span>${groupMeta[grp]?.label || grp}</span><span style="margin-left:auto;font-size:10px;color:var(--muted)">${items.length}</span>`;
+      container.appendChild(hdr);
+      items.forEach(t => container.appendChild(makeCard(t)));
+    });
+  }
+}
+
+function makeCard(t) {
+  const card = document.createElement('div');
+  card.className = 'test-card';
+  card.draggable = true;
+  card.dataset.testId = t.id;
+  const icon = CAT_ICON[t.category] || '🧪';
+  card.innerHTML = `
+    <div class="test-card-header">
+      <div class="test-card-icon">${icon}</div>
+      <div class="test-card-info">
+        <div class="test-card-name">${escHtml(t.name)}</div>
+        <div class="test-card-desc">${escHtml(t.description)}</div>
+      </div>
+      <span class="cat-badge cat-${t.category}">${t.category}</span>
+    </div>
+    <div class="test-card-tags">${(t.tags||[]).map(tg=>`<span class="tag">${escHtml(tg)}</span>`).join('')}</div>
+  `;
+  card.addEventListener('dragstart', e => {
+    draggingId = t.id; draggingSource = 'library';
+    e.dataTransfer.effectAllowed = 'copy';
+    setTimeout(() => card.classList.add('dragging'), 0);
   });
+  card.addEventListener('dragend', () => card.classList.remove('dragging'));
+  card.addEventListener('dblclick', () => addToQueue(t.id));
+  return card;
 }
 
-// ─── Drag & Drop ─────────────────────────────────────────────────────────────
-function onLibraryDragStart(e, testId) {
-  draggingId = testId;
-  draggingSource = 'library';
-  e.dataTransfer.effectAllowed = 'copy';
-  e.currentTarget.classList.add('dragging');
-}
-
+// ── Drag & Drop — library → queue ─────────────────────────────────────────
 function onDragOver(e) {
   e.preventDefault();
-  e.dataTransfer.dropEffect = 'copy';
-  document.getElementById('drop-zone').classList.add('drag-active');
+  e.dataTransfer.dropEffect = draggingSource === 'queue' ? 'move' : 'copy';
+  if (draggingSource !== 'queue')
+    document.getElementById('drop-zone').classList.add('drag-active');
 }
-
 function onDragLeave(e) {
   document.getElementById('drop-zone').classList.remove('drag-active');
 }
-
 function onDrop(e) {
   e.preventDefault();
   document.getElementById('drop-zone').classList.remove('drag-active');
-  // Only handle library → queue drops here; queue → queue is handled per-item
-  if (draggingSource === 'library' && draggingId) {
-    addToQueue(draggingId);
-  }
-  draggingId = null;
+  if (draggingSource === 'library' && draggingId) addToQueue(draggingId);
+  draggingId = null; draggingSource = null;
 }
 
-// ─── Queue Management ────────────────────────────────────────────────────────
+// ── Queue management ───────────────────────────────────────────────────────
 function addToQueue(testId) {
-  const test = availableTests.find(t => t.id === testId);
-  if (!test) return;
-  queuedTests.push({ id: testId, name: test.name, status: 'idle', category: test.category });
+  const t = availableTests.find(x => x.id === testId);
+  if (!t) return;
+  queuedTests.push({ id: testId, name: t.name, category: t.category, status: 'idle' });
   renderQueue();
 }
 
-function removeFromQueue(idx) {
-  queuedTests.splice(idx, 1);
+function removeFromQueue(idx) { queuedTests.splice(idx, 1); renderQueue(); }
+function clearQueue()         { queuedTests = []; renderQueue(); }
+
+function addAllVisible() {
+  // Add whatever is currently shown in the library (respects tab + search)
+  const visibleIds = new Set(
+    [...document.querySelectorAll('#test-list .test-card')].map(c => c.dataset.testId)
+  );
+  availableTests.filter(t => visibleIds.has(t.id))
+    .forEach(t => queuedTests.push({ id: t.id, name: t.name, category: t.category, status: 'idle' }));
   renderQueue();
 }
 
-function clearQueue() {
-  queuedTests = [];
-  renderQueue();
-}
-
-function addAllTests() {
-  queuedTests = availableTests.map(t => ({ id: t.id, name: t.name, status: 'idle', category: t.category }));
-  renderQueue();
-}
-
-const catIcons2 = { Basic: '🔍', Placement: '📍', Reclaim: '♻️', Events: '📋', General: '⚙️' };
+const EXEC_ICON = { Basic:'🔍', Placement:'📌', Reclaim:'♻', Events:'📋', IO:'⚙', Endurance:'📈', Reset:'🔄', General:'🧪' };
 
 function renderQueue() {
-  const zone = document.getElementById('drop-zone');
+  const zone  = document.getElementById('drop-zone');
   const empty = document.getElementById('drop-empty');
-
   [...zone.querySelectorAll('.exec-item')].forEach(el => el.remove());
 
-  if (queuedTests.length === 0) {
+  if (!queuedTests.length) {
     empty.style.display = '';
-    updateRunButton();
-    updateSummary();
-    return;
+    updateRunButton(); updateSummary(); return;
   }
   empty.style.display = 'none';
 
@@ -749,354 +994,287 @@ function renderQueue() {
     item.className = `exec-item${t.status !== 'idle' ? ' ' + t.status : ''}`;
     item.dataset.queueIdx = i;
     item.draggable = true;
+    const icon = EXEC_ICON[t.category] || '🧪';
     item.innerHTML = `
       <span class="exec-handle" title="Drag to reorder">⠿</span>
-      <span style="font-size:15px">${catIcons2[t.category] || '🧪'}</span>
-      <span class="exec-name">${t.name}</span>
+      <span class="exec-icon">${icon}</span>
+      <span class="exec-name">${escHtml(t.name)}</span>
       <div class="exec-status ${t.status}">${statusIcon(t.status)}</div>
       <button class="exec-remove" onclick="removeFromQueue(${i})" title="Remove">×</button>
     `;
 
-    // Drag START — from queue (reorder)
+    // Drag start from queue (reorder)
     item.addEventListener('dragstart', e => {
-      draggingId = t.id;
-      draggingSource = 'queue';
-      draggingQueueIdx = i;
+      draggingId = t.id; draggingSource = 'queue'; draggingQueueIdx = i;
       e.dataTransfer.effectAllowed = 'move';
-      // Delay adding class so the drag image renders before opacity drops
       setTimeout(() => item.classList.add('dragging'), 0);
     });
-
     item.addEventListener('dragend', () => {
       item.classList.remove('dragging');
-      clearQueueDropIndicators();
-      draggingQueueIdx = null;
-      draggingSource = null;
-      draggingId = null;
+      clearDropIndicators();
+      draggingSource = draggingId = draggingQueueIdx = null;
     });
 
-    // Drag OVER a queue item — show insertion indicator
+    // Drag over queue item — show insert indicator
     item.addEventListener('dragover', e => {
       if (draggingSource !== 'queue') return;
-      e.preventDefault();
-      e.stopPropagation();
-      clearQueueDropIndicators();
-      const rect = item.getBoundingClientRect();
-      const midpoint = rect.top + rect.height / 2;
-      if (e.clientY < midpoint) {
-        item.classList.add('drop-above');
-      } else {
-        item.classList.add('drop-below');
-      }
+      e.preventDefault(); e.stopPropagation();
+      clearDropIndicators();
+      const mid = item.getBoundingClientRect().top + item.getBoundingClientRect().height / 2;
+      item.classList.add(e.clientY < mid ? 'drop-above' : 'drop-below');
     });
+    item.addEventListener('dragleave', () => item.classList.remove('drop-above','drop-below'));
 
-    item.addEventListener('dragleave', () => {
-      item.classList.remove('drop-above', 'drop-below');
-    });
-
-    // Drop ON a queue item — reorder
+    // Drop on queue item — reorder
     item.addEventListener('drop', e => {
       if (draggingSource !== 'queue') return;
-      e.preventDefault();
-      e.stopPropagation();
-
-      const targetIdx = parseInt(item.dataset.queueIdx);
-      const sourceIdx = draggingQueueIdx;
-
-      if (sourceIdx === null || sourceIdx === targetIdx) {
-        clearQueueDropIndicators();
-        return;
-      }
-
-      // Determine insert position based on which half was dropped on
-      const rect = item.getBoundingClientRect();
-      const midpoint = rect.top + rect.height / 2;
-      let insertAt = targetIdx;
-      if (e.clientY >= midpoint) insertAt = targetIdx + 1;
-
-      // Remove from original position and insert at new position
-      const [moved] = queuedTests.splice(sourceIdx, 1);
-      const adjustedInsert = insertAt > sourceIdx ? insertAt - 1 : insertAt;
-      queuedTests.splice(adjustedInsert, 0, moved);
-
-      clearQueueDropIndicators();
+      e.preventDefault(); e.stopPropagation();
+      const target = parseInt(item.dataset.queueIdx);
+      const source = draggingQueueIdx;
+      if (source == null || source === target) { clearDropIndicators(); return; }
+      const mid = item.getBoundingClientRect().top + item.getBoundingClientRect().height / 2;
+      let insertAt = e.clientY < mid ? target : target + 1;
+      const [moved] = queuedTests.splice(source, 1);
+      queuedTests.splice(insertAt > source ? insertAt - 1 : insertAt, 0, moved);
+      clearDropIndicators();
       renderQueue();
     });
 
     zone.appendChild(item);
   });
 
-  updateRunButton();
-  updateSummary();
+  updateRunButton(); updateSummary();
 }
 
-function clearQueueDropIndicators() {
-  document.querySelectorAll('.exec-item').forEach(el => {
-    el.classList.remove('drop-above', 'drop-below');
-  });
+function clearDropIndicators() {
+  document.querySelectorAll('.exec-item').forEach(el => el.classList.remove('drop-above','drop-below'));
 }
 
 function statusIcon(s) {
-  return { idle: '', running: '↻', 'status-pass': '✔', 'status-fail': '✘', 'status-warn': '⚠', 'status-error': '⚠' }[s] || '';
+  return { idle:'', running:'↻', 'status-pass':'✔', 'status-fail':'✘',
+           'status-warn':'⚠', 'status-error':'⚠', 'status-skip':'⏭' }[s] || '';
 }
 
-function updateQueueItemStatus(testId, status) {
+function updateQueueStatus(testId, status) {
   const t = queuedTests.find(q => q.id === testId);
   if (t) { t.status = status; renderQueue(); }
 }
 
 function updateSummary() {
-  const pass = queuedTests.filter(t => t.status === 'status-pass').length;
-  const fail = queuedTests.filter(t => t.status === 'status-fail').length;
-  const warn = queuedTests.filter(t => t.status === 'status-warn').length;
-  document.getElementById('sum-pass').textContent = pass + ' pass';
-  document.getElementById('sum-fail').textContent = fail + ' fail';
-  document.getElementById('sum-warn').textContent = warn + ' warn';
+  const pass = queuedTests.filter(t=>t.status==='status-pass').length;
+  const fail = queuedTests.filter(t=>t.status==='status-fail').length;
+  const warn = queuedTests.filter(t=>t.status==='status-warn').length;
+  document.getElementById('sum-pass').textContent  = pass + ' pass';
+  document.getElementById('sum-fail').textContent  = fail + ' fail';
+  document.getElementById('sum-warn').textContent  = warn + ' warn';
   document.getElementById('sum-total').textContent = queuedTests.length + ' queued';
 }
 
-// ─── Run / Stop ──────────────────────────────────────────────────────────────
+// ── Run / Stop ─────────────────────────────────────────────────────────────
 async function runTests() {
   const device = document.getElementById('device-select').value;
-  if (!device || queuedTests.length === 0) return;
-
-  // Reset statuses
+  if (!device || !queuedTests.length) return;
   queuedTests.forEach(t => t.status = 'idle');
-  renderQueue();
-  clearLog();
-  hideResultSummary();
-  setRunning(true);
-
+  renderQueue(); clearLog(); hideResultSummary(); setRunning(true);
   const r = await fetch('/api/run', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ device, tests: queuedTests.map(t => t.id) })
   }).then(x => x.json());
-
   currentRunId = r.run_id;
 }
 
 async function stopTests() {
-  if (currentRunId) {
-    await fetch(`/api/run/${currentRunId}/stop`, { method: 'POST' });
-  }
+  if (currentRunId) await fetch(`/api/run/${currentRunId}/stop`, { method:'POST' });
 }
 
 function setRunning(running) {
-  document.getElementById('run-btn').style.display = running ? 'none' : '';
+  document.getElementById('run-btn').style.display  = running ? 'none' : '';
   document.getElementById('stop-btn').style.display = running ? '' : 'none';
 }
 
 function updateRunButton() {
   const device = document.getElementById('device-select').value;
-  const btn = document.getElementById('run-btn');
-  btn.disabled = !device || queuedTests.length === 0;
+  document.getElementById('run-btn').disabled = !device || !queuedTests.length;
 }
 document.getElementById('device-select').addEventListener('change', updateRunButton);
 
-// ─── Log ─────────────────────────────────────────────────────────────────────
-function log(msg, type = 'info') {
-  const container = document.getElementById('log');
+// ── Log ────────────────────────────────────────────────────────────────────
+function log(msg, type='info') {
+  const c    = document.getElementById('log');
   const line = document.createElement('div');
   line.className = `log-line ${type}`;
-  const now = new Date();
-  const ts = now.toTimeString().slice(0,8);
+  const ts = new Date().toTimeString().slice(0,8);
   line.innerHTML = `<span class="ts">${ts}</span><span class="msg">${escHtml(msg)}</span>`;
-  container.appendChild(line);
-  container.scrollTop = container.scrollHeight;
+  c.appendChild(line);
+  c.scrollTop = c.scrollHeight;
 }
+function clearLog() { document.getElementById('log').innerHTML = ''; }
 
-function clearLog() {
-  document.getElementById('log').innerHTML = '';
-}
-
-function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-// ─── Results ─────────────────────────────────────────────────────────────────
+// ── Result summary ─────────────────────────────────────────────────────────
 function showResultSummary(total, pass, fail, warn) {
   const el = document.getElementById('result-summary');
   el.style.display = '';
   document.getElementById('rs-total').textContent = total;
-  document.getElementById('rs-pass').textContent = pass;
-  document.getElementById('rs-fail').textContent = fail;
-  document.getElementById('rs-warn').textContent = warn;
+  document.getElementById('rs-pass').textContent  = pass;
+  document.getElementById('rs-fail').textContent  = fail;
+  document.getElementById('rs-warn').textContent  = warn;
 }
-function hideResultSummary() {
-  document.getElementById('result-summary').style.display = 'none';
-}
+function hideResultSummary() { document.getElementById('result-summary').style.display = 'none'; }
 
-// ═══════════════════════════════════════════════════════════════
-//  DEVICE CONTROL
-// ═══════════════════════════════════════════════════════════════
-
-function getSelectedDevice() {
-  return document.getElementById('device-select').value;
+// ── Utilities ──────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ── Modal helpers ────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// RESIZABLE PANELS
+// ═══════════════════════════════════════════════════════════════════════════
+function initResize() {
+  setupResizeHandle('rh-left',  'panel-library', 'left',  180, 520);
+  setupResizeHandle('rh-right', 'panel-log',     'right', 200, 600);
+}
+
+function setupResizeHandle(handleId, panelId, side, minW, maxW) {
+  const handle = document.getElementById(handleId);
+  const panel  = document.getElementById(panelId);
+  let startX, startW;
+
+  handle.addEventListener('mousedown', e => {
+    e.preventDefault();
+    startX = e.clientX;
+    startW = panel.getBoundingClientRect().width;
+    handle.classList.add('active');
+    document.body.classList.add('resizing');
+
+    function onMove(ev) {
+      const delta = side === 'left'
+        ? ev.clientX - startX
+        : startX - ev.clientX;
+      const newW = Math.min(maxW, Math.max(minW, startW + delta));
+      panel.style.width = newW + 'px';
+      panel.style.flexShrink = '0';
+    }
+
+    function onUp() {
+      handle.classList.remove('active');
+      document.body.classList.remove('resizing');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup',   onUp);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DEVICE CONTROL
+// ═══════════════════════════════════════════════════════════════════════════
+function getSelectedDevice() { return document.getElementById('device-select').value; }
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
-// Close modal on backdrop click
-document.querySelectorAll('.modal-overlay').forEach(overlay => {
-  overlay.addEventListener('click', e => {
-    if (e.target === overlay) overlay.classList.remove('open');
-  });
-});
+document.querySelectorAll('.modal-overlay').forEach(ov =>
+  ov.addEventListener('click', e => { if (e.target === ov) ov.classList.remove('open'); })
+);
 
-// ── Show result modal ────────────────────────────────────────────
 function showNSResult(title, subtitle, lines) {
   document.getElementById('ns-result-title').textContent    = title;
   document.getElementById('ns-result-subtitle').textContent = subtitle;
   const box = document.getElementById('ns-result-content');
   box.innerHTML = lines.map(({text, cls}) =>
-    `<span class="${cls || ''}">${escHtml(text)}</span>\n`
+    `<span class="${cls||''}">${escHtml(text)}</span>\n`
   ).join('');
   openModal('ns-result-modal');
 }
 
-// ── List Namespaces ──────────────────────────────────────────────
 async function ctrlListNS() {
   const device = getSelectedDevice();
   if (!device) return alert('Select a device first.');
   const btn = document.getElementById('ctrl-list-ns');
-  btn.disabled = true;
-  btn.textContent = '⏳ Listing...';
-
+  btn.disabled = true; btn.textContent = '⏳ Listing…';
   try {
     const r = await fetch('/api/ctrl/list-ns', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({device})
     }).then(x => x.json());
-
-    const lines = [];
-    lines.push({text: `Device: ${device}`, cls: 'hd'});
-    lines.push({text: ''});
-
-    if (r.error) {
-      lines.push({text: '✘ ' + r.error, cls: 'err'});
-    } else if (r.namespaces && r.namespaces.length > 0) {
-      lines.push({text: `Found ${r.namespaces.length} namespace(s):`, cls: 'ok'});
+    const lines = [{text:`Device: ${device}`,cls:'hd'},{text:''}];
+    if (r.error) { lines.push({text:'✘ '+r.error,cls:'err'}); }
+    else if (r.namespaces?.length) {
+      lines.push({text:`Found ${r.namespaces.length} namespace(s):`,cls:'ok'});
       r.namespaces.forEach(ns => {
-        lines.push({text: `  NSID ${ns.nsid}`, cls: 'ok'});
-        if (ns.size_gb)  lines.push({text: `    Size:     ${ns.size_gb} GB`, cls: 'mut'});
-        if (ns.lba_size) lines.push({text: `    LBA Size: ${ns.lba_size} B`, cls: 'mut'});
-        if (ns.fdp)      lines.push({text: `    FDP:      enabled`, cls: 'ok'});
-        lines.push({text: ''});
+        lines.push({text:`  NSID ${ns.nsid}`,cls:'ok'});
+        if (ns.size_gb)  lines.push({text:`    Size:     ${ns.size_gb} GB`,cls:'mut'});
+        if (ns.lba_size) lines.push({text:`    LBA Size: ${ns.lba_size} B`,cls:'mut'});
+        if (ns.fdp)      lines.push({text:`    FDP:      enabled`,cls:'ok'});
+        lines.push({text:''});
       });
-    } else {
-      lines.push({text: 'No namespaces found.', cls: 'mut'});
-    }
-
-    if (r.raw) lines.push({text: r.raw, cls: 'mut'});
+    } else { lines.push({text:'No namespaces found.',cls:'mut'}); }
+    if (r.raw) lines.push({text:r.raw,cls:'mut'});
     showNSResult('Namespace List', device, lines);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '📋 List Namespaces';
-  }
+  } finally { btn.disabled=false; btn.textContent='📋 List Namespaces'; }
 }
 
-// ── Delete All Namespaces ────────────────────────────────────────
 async function ctrlDeleteAllNS() {
   const device = getSelectedDevice();
   if (!device) return alert('Select a device first.');
-
-  const confirmed = confirm(
-    `⚠ WARNING\n\nThis will delete ALL namespaces on:\n${device}\n\n` +
-    `All data will be permanently lost. Continue?`
-  );
-  if (!confirmed) return;
-
+  if (!confirm(`⚠ WARNING\n\nThis will delete ALL namespaces on:\n${device}\n\nAll data will be permanently lost. Continue?`)) return;
   const btn = document.getElementById('ctrl-del-ns');
-  btn.disabled = true;
-  btn.textContent = '⏳ Deleting...';
-
+  btn.disabled=true; btn.textContent='⏳ Deleting…';
   try {
     const r = await fetch('/api/ctrl/delete-all-ns', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({device})
     }).then(x => x.json());
-
-    const lines = [{text: `Device: ${device}`, cls: 'hd'}, {text: ''}];
-    if (r.error) {
-      lines.push({text: '✘ ' + r.error, cls: 'err'});
-    } else {
-      (r.results || []).forEach(res => {
-        const cls = res.success ? 'ok' : 'err';
-        const icon = res.success ? '✔' : '✘';
-        lines.push({text: `${icon} NSID ${res.nsid}: ${res.message}`, cls});
-      });
-      if (r.deleted === 0) lines.push({text: 'No namespaces to delete.', cls: 'mut'});
+    const lines = [{text:`Device: ${device}`,cls:'hd'},{text:''}];
+    if (r.error) { lines.push({text:'✘ '+r.error,cls:'err'}); }
+    else {
+      (r.results||[]).forEach(res =>
+        lines.push({text:`${res.success?'✔':'✘'} NSID ${res.nsid}: ${res.message}`,cls:res.success?'ok':'err'})
+      );
+      if (r.deleted===0) lines.push({text:'No namespaces to delete.',cls:'mut'});
     }
-    showNSResult('Delete All Namespaces', `${r.deleted ?? 0} deleted`, lines);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '🗑 Delete All Namespaces';
-  }
+    showNSResult('Delete All Namespaces', `${r.deleted??0} deleted`, lines);
+  } finally { btn.disabled=false; btn.textContent='🗑 Delete All Namespaces'; }
 }
 
-// ── Create Namespace Modal ───────────────────────────────────────
 function openCreateNSModal() {
-  const device = getSelectedDevice();
-  if (!device) return alert('Select a device first.');
+  if (!getSelectedDevice()) return alert('Select a device first.');
   updateCmdPreview();
   openModal('create-ns-modal');
 }
 
-// Live command preview
-const previewFields = ['ns-size','ns-cap','ns-flbas','ns-dps','ns-ruhs','ns-pids','ns-endg','ns-fdp-idx','ns-nmic'];
-previewFields.forEach(id => {
-  const el = document.getElementById(id);
-  if (el) el.addEventListener('input', updateCmdPreview);
+['ns-size','ns-cap','ns-flbas','ns-dps','ns-ruhs','ns-endg','ns-nmic'].forEach(id => {
+  document.getElementById(id)?.addEventListener('input', updateCmdPreview);
 });
 
 function updateCmdPreview() {
-  const device = getSelectedDevice() || '<device>';
-  const size   = document.getElementById('ns-size').value   || '?';
-  const cap    = document.getElementById('ns-cap').value    || '?';
-  const flbas  = document.getElementById('ns-flbas').value  || '0';
-  const dps    = document.getElementById('ns-dps').value    || '0';
-  const ruhs   = document.getElementById('ns-ruhs').value   || '?';
-  const pids   = document.getElementById('ns-pids').value   || '?';
-  const endg   = document.getElementById('ns-endg').value   || '0';
-  const fdpidx = document.getElementById('ns-fdp-idx').value || '0';
-  const nmic   = document.getElementById('ns-nmic').value   || '0';
-
-  const createCmd =
-    `nvme create-ns ${device} \\\n` +
+  const dev   = getSelectedDevice() || '<device>';
+  const size  = document.getElementById('ns-size').value  || '?';
+  const cap   = document.getElementById('ns-cap').value   || '?';
+  const flbas = document.getElementById('ns-flbas').value || '0';
+  const dps   = document.getElementById('ns-dps').value   || '0';
+  const ruhs  = document.getElementById('ns-ruhs').value  || '?';
+  const endg  = document.getElementById('ns-endg').value  || '0';
+  const nmic  = document.getElementById('ns-nmic').value  || '0';
+  document.getElementById('cmd-preview').textContent =
+    `# Step 1 — Create\nnvme create-ns ${dev} \\\n` +
     `  --nsze=${size} --ncap=${cap} \\\n` +
     `  --flbas=${flbas} --dps=${dps} --nmic=${nmic} \\\n` +
-    `  --endg-id=${endg} --nphndls=${ruhs} \\\n` +
-    `  --anagrp-id=1`;
-
-  const attachCmd =
-    `nvme attach-ns ${device} \\\n` +
+    `  --endg-id=${endg} --nphndls=${ruhs} --anagrp-id=1\n\n` +
+    `# Step 2 — Attach\nnvme attach-ns ${dev} \\\n` +
     `  --namespace-id=<new-nsid> --controllers=0x1`;
-
-  document.getElementById('cmd-preview').textContent =
-    `# Step 1 — Create\n${createCmd}\n\n# Step 2 — Attach\n${attachCmd}`;
 }
 
-// ── Submit Create Namespace ──────────────────────────────────────
 async function submitCreateNS() {
   const device = getSelectedDevice();
   if (!device) return;
-
-  // Validate
   let valid = true;
-  const required = ['ns-size','ns-cap','ns-ruhs','ns-pids'];
-  required.forEach(id => {
+  ['ns-size','ns-cap','ns-ruhs'].forEach(id => {
     const el = document.getElementById(id);
-    if (!el.value || parseInt(el.value) <= 0) {
-      el.classList.add('error');
-      valid = false;
-    } else {
-      el.classList.remove('error');
-    }
+    if (!el.value || parseInt(el.value)<=0) { el.classList.add('error'); valid=false; }
+    else el.classList.remove('error');
   });
   if (!valid) return;
 
@@ -1108,51 +1286,32 @@ async function submitCreateNS() {
     dps:     parseInt(document.getElementById('ns-dps').value),
     nmic:    parseInt(document.getElementById('ns-nmic').value),
     nphndls: parseInt(document.getElementById('ns-ruhs').value),
-    npids:   parseInt(document.getElementById('ns-pids').value),
     endg_id: parseInt(document.getElementById('ns-endg').value),
-    fdp_idx: parseInt(document.getElementById('ns-fdp-idx').value),
   };
 
   const btn = document.getElementById('create-ns-btn');
-  btn.disabled = true;
-  btn.textContent = '⏳ Creating...';
-
+  btn.disabled=true; btn.textContent='⏳ Creating…';
   try {
     const r = await fetch('/api/ctrl/create-ns', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify(params)
     }).then(x => x.json());
-
     closeModal('create-ns-modal');
-
-    const lines = [{text: `Device: ${device}`, cls: 'hd'}, {text: ''}];
+    const lines = [{text:`Device: ${device}`,cls:'hd'},{text:''}];
     if (r.error) {
-      lines.push({text: '✘ ' + r.error, cls: 'err'});
-      if (r.detail) lines.push({text: r.detail, cls: 'mut'});
+      lines.push({text:'✘ '+r.error,cls:'err'});
+      if (r.detail) lines.push({text:r.detail,cls:'mut'});
     } else {
-      lines.push({text: `✔ Namespace created — NSID: ${r.nsid}`, cls: 'ok'});
-      lines.push({text: ''});
-      if (r.attach_result) {
-        const ac = r.attach_success ? 'ok' : 'err';
-        const ai = r.attach_success ? '✔' : '✘';
-        lines.push({text: `${ai} Attach: ${r.attach_result}`, cls: ac});
-      }
-      if (r.commands) {
-        lines.push({text: ''});
-        lines.push({text: 'Commands executed:', cls: 'hd'});
-        r.commands.forEach(c => lines.push({text: '  ' + c, cls: 'mut'}));
-      }
+      lines.push({text:`✔ Namespace created — NSID: ${r.nsid}`,cls:'ok'},{text:''});
+      if (r.attach_result) lines.push({text:`${r.attach_success?'✔':'✘'} Attach: ${r.attach_result}`,cls:r.attach_success?'ok':'err'});
+      if (r.commands) { lines.push({text:'',cls:''}); lines.push({text:'Commands:',cls:'hd'}); r.commands.forEach(c=>lines.push({text:'  '+c,cls:'mut'})); }
     }
-
-    showNSResult('Create Namespace', r.error ? 'Failed' : `NSID ${r.nsid} created & attached`, lines);
+    showNSResult('Create Namespace', r.error?'Failed':`NSID ${r.nsid} created & attached`, lines);
     if (!r.error) refreshDevices();
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Create & Attach';
-  }
+  } finally { btn.disabled=false; btn.textContent='Create & Attach'; }
 }
 
+// ── Boot ───────────────────────────────────────────────────────────────────
 init();
 </script>
 </body>

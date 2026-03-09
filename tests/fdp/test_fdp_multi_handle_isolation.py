@@ -6,6 +6,10 @@ placement between handles. Critical for validating GC isolation guarantees.
 """
 
 from tests.base_test import BaseTest, TestResult, TestStatus
+import os as _os
+_IO_FILES = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "IO_files")
+_DATA_FILE = _os.path.join(_IO_FILES, "randints_4k.txt")
+
 
 
 class TestFDPMultiHandleIsolation(BaseTest):
@@ -63,9 +67,9 @@ class TestFDPMultiHandleIsolation(BaseTest):
                 "--start-block=0",
                 "--block-count=0",
                 "--data-size=4096",
-                "--data=/dev/zero",
-                "--dtype=2",
-                f"--dspec={hid}",
+                "--data=" + _DATA_FILE,
+                "--dir-type=2",
+                f"--dir-spec={hid}",
             ], json_out=False)
 
             if result["rc"] != 0 and "success" not in result["stdout"].lower():
@@ -130,3 +134,4 @@ class TestFDPMultiHandleIsolation(BaseTest):
 
     def _handle_id(self, ruh: dict) -> int:
         return int(ruh.get("phndl", ruh.get("PlacementHandle", ruh.get("ruhid", 0))))
+
