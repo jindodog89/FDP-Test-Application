@@ -307,3 +307,106 @@ class NVMeCliDriver(BaseNVMeDriver):
         if data_len:
             args.append(f"--data-len={data_len}")
         return self.run_cmd(args, json_out=False)
+    
+# ── Admin Commands (Features & Logs) ──────────────────────────────────────
+
+    def set_feature(self, feature_id: int, value: int = 0, cdw12: int = 0,
+                    cdw13: int = 0, cdw14: int = 0, cdw15: int = 0,
+                    data_len: int = 0, data_path: str = None, save: bool = False) -> dict:
+        """
+        nvme set-feature mapping. 'value' targets CDW11.
+        """
+        args = [
+            "set-feature", self.device,
+            f"--feature-id={feature_id}",
+            f"--value={value}",
+            f"--cdw12={cdw12}",
+            f"--cdw13={cdw13}",
+            f"--cdw14={cdw14}",
+            f"--cdw15={cdw15}"
+        ]
+        if save:
+            args.append("--save")
+        if data_len > 0:
+            args.append(f"--data-len={data_len}")
+        if data_path:
+            args.append(f"--data={data_path}")
+        return self.run_cmd(args, json_out=False)
+
+    def get_feature(self, feature_id: int, cdw11: int = 0, sel: int = 0,
+                    data_len: int = 0, namespace_id: int = 0xFFFFFFFF) -> dict:
+        """
+        nvme get-feature mapping.
+        """
+        args = [
+            "get-feature", self.device,
+            f"--feature-id={feature_id}",
+            f"--cdw11={cdw11}",
+            f"--sel={sel}",
+            f"--namespace-id={namespace_id}"
+        ]
+        if data_len > 0:
+            args.append(f"--data-len={data_len}")
+        return self.run_cmd(args, json_out=True)
+
+    def get_log(self, log_id: int, log_len: int = 4096, offset: int = 0,
+                lsp: int = 0, lsi: int = 0, rae: bool = False,
+                namespace_id: int = 0xFFFFFFFF, bin_out: bool = False) -> dict:
+        """
+        nvme get-log mapping. Supports custom offsets for boundary testing.
+        """
+        args = [
+            "get-log", self.device,
+            f"--log-id={log_id}",
+            f"--log-len={log_len}",
+            f"--lpo={offset}",
+            f"--lsp={lsp}",
+            f"--lsi={lsi}",
+            f"--namespace-id={namespace_id}"
+        ]
+        if rae:
+            args.append("--rae")
+        
+        # If binary dump is needed (e.g., partial read boundaries), return raw string output
+        return self.run_cmd(args, json_out=not bin_out)
+
+    # ── Namespace Management ──────────────────────────────────────────────────
+
+    def create_ns(self, nsze: int, ncap: int, flbas: int, dps: int = 0,
+                  nmic: int = 0, endg_id: int = 0, nphndls: int = 0,
+                  anagrp_id: int = 0) -> dict:
+        """
+        nvme create-ns mapping. Supports FDP parameters like endg-id and nphndls.
+        """
+        args = [
+            "create-ns", self.device,
+            f"--nsze={nsze}", f"--ncap={ncap}", f"--flbas={flbas}",
+            f"--dps={dps}", f"--nmic={nmic}"
+        ]
+        if endg_id > 0:
+            args.append(f"--endg-id={endg_id}")
+        if nphndls > 0:
+            args.append(f"--nphndls={nphndls}")
+        if anagrp_id > 0:
+            args.append(f"--anagrp-id={anagrp_id}")
+            
+        return self.run_cmd(args, json_out=False)
+
+    def delete_ns(self, namespace_id: int) -> dict:
+        return self.run_cmd([
+            "delete-ns", self.device, f"--namespace-id={namespace_id}"
+        ], json_out=False)
+
+    def attach_ns(self, namespace_id: int, controllers: str = "0x1") -> dict:
+        return self.run_cmd([
+            "attach-ns", self.device,
+            f"--namespace-id={namespace_id}",
+            f"--controllers={controllers}"
+        ], json_out=False)
+
+    def detach_ns(self, namespace_id: int, controllers: str = "0x1") -> dict:
+        return self.run_cmd([
+            "detach-ns", self.device,
+            f"--namespace-id={namespace_id}",
+            f"--controllers={controllers}"
+        ], json_out=False)

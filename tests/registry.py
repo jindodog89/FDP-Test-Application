@@ -47,6 +47,31 @@ from tests.fdp.test_fdp_config_index_persistence       import TestFDPConfigIndex
 from tests.fdp.test_fdp_stats_monotonicity             import TestFDPStatsMonotonicity
 from tests.fdp.test_fdp_event_log_persistence          import TestFDPEventLogPersistReset
 
+# ── Admin tests ───────────────────────────────────────────────────────────────
+from tests.admin.test_admin_enable_fdp_empty import TestAdminEnableFDPEmpty
+from tests.admin.test_admin_enable_fdp_with_ns import TestAdminEnableFDPWithNS
+from tests.admin.test_admin_disable_fdp_stats_clear import TestAdminDisableFDPStatsClear
+from tests.admin.test_admin_enable_fdp_invalid_config import TestAdminEnableFDPInvalidConfig
+from tests.admin.test_admin_create_ns_valid_phl import TestAdminCreateNSValidPHL
+from tests.admin.test_admin_create_ns_invalid_phl import TestAdminCreateNSInvalidPHL
+from tests.admin.test_admin_read_fdp_configs_log import TestAdminReadFDPConfigsLog
+from tests.admin.test_admin_validate_fdp_configs_header import TestAdminValidateFDPConfigsHeader
+from tests.admin.test_admin_partial_log_page_read import TestAdminPartialLogPageRead
+from tests.admin.test_admin_read_fdp_stats import TestAdminReadFDPStats
+from tests.admin.test_admin_validate_fdp_stats_monotonicity import TestAdminValidateFDPStatsMonotonicity
+from tests.admin.test_admin_validate_hbw_accuracy import TestAdminValidateHBWAccuracy
+from tests.admin.test_admin_validate_fdp_config_desc_header import TestAdminValidateFDPConfigDescHeader
+from tests.admin.test_admin_validate_reclaim_resources import TestAdminValidateReclaimResources
+from tests.admin.test_admin_validate_maxpid import TestAdminValidateMAXPID
+from tests.admin.test_admin_validate_rgif import TestAdminValidateRGIF
+from tests.admin.test_admin_validate_fdp_attributes import TestAdminValidateFDPAttributes
+from tests.admin.test_admin_validate_event_log_header import TestAdminValidateEventLogHeader
+from tests.admin.test_admin_validate_event_invalid_pid import TestAdminValidateEventInvalidPID
+from tests.admin.test_admin_validate_event_masking import TestAdminValidateEventMasking
+from tests.admin.test_admin_validate_event_ordering import TestAdminValidateEventOrdering
+from tests.admin.test_admin_event_log_retention import TestAdminEventLogRetention
+from tests.admin.test_admin_calculate_waf import TestAdminCalculateWAF
+from tests.admin.test_admin_dwpd_calculation import TestAdminDWPDCalculation
 
 ALL_TESTS = [
     # ── Basic / status ────────────────────────────────────────────────────────
@@ -92,6 +117,33 @@ ALL_TESTS = [
     TestFDPConfigIndexPersistence,
     TestFDPStatsMonotonicity,
     TestFDPEventLogPersistReset,
+
+    # ── Admin ─────────────────────────────────────────────────────────────────
+    TestAdminEnableFDPEmpty,
+    TestAdminEnableFDPWithNS,
+    TestAdminDisableFDPStatsClear,
+    TestAdminEnableFDPInvalidConfig,
+    TestAdminCreateNSValidPHL,
+    TestAdminCreateNSInvalidPHL,
+    TestAdminReadFDPConfigsLog,
+    TestAdminValidateFDPConfigsHeader,
+    TestAdminPartialLogPageRead,
+    TestAdminReadFDPStats,
+    TestAdminValidateFDPStatsMonotonicity,
+    TestAdminValidateHBWAccuracy,
+    TestAdminValidateFDPConfigDescHeader,
+    TestAdminValidateReclaimResources,
+    TestAdminValidateMAXPID,
+    TestAdminValidateRGIF,
+    TestAdminValidateFDPAttributes,
+    TestAdminValidateEventLogHeader,
+    TestAdminValidateEventInvalidPID,
+    TestAdminValidateEventMasking,
+    TestAdminValidateEventOrdering,
+    TestAdminEventLogRetention,
+    TestAdminCalculateWAF,
+    TestAdminDWPDCalculation,
+
 ]
 
 
