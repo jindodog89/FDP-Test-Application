@@ -72,6 +72,11 @@ from tests.admin.test_admin_validate_event_ordering import TestAdminValidateEven
 from tests.admin.test_admin_event_log_retention import TestAdminEventLogRetention
 from tests.admin.test_admin_calculate_waf import TestAdminCalculateWAF
 from tests.admin.test_admin_dwpd_calculation import TestAdminDWPDCalculation
+from tests.admin.test_admin_identify_fdps import TestAdminIdentifyFDPS
+from tests.admin.test_admin_identify_fcm import TestAdminIdentifyFCM
+from tests.admin.test_admin_identify_vwc_global import TestAdminIdentifyVWCGlobal
+from tests.admin.test_admin_identify_vwc_flush import TestAdminIdentifyVWCFlush
+from tests.admin.test_admin_identify_fdps_command_set import TestAdminIdentifyFDPSCommandSet
 
 ALL_TESTS = [
     # ── Basic / status ────────────────────────────────────────────────────────
@@ -143,7 +148,11 @@ ALL_TESTS = [
     TestAdminEventLogRetention,
     TestAdminCalculateWAF,
     TestAdminDWPDCalculation,
-
+    TestAdminIdentifyFDPS,
+    TestAdminIdentifyFCM,
+    TestAdminIdentifyVWCGlobal,
+    TestAdminIdentifyVWCFlush,
+    TestAdminIdentifyFDPSCommandSet,
 ]
 
 

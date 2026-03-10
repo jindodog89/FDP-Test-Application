@@ -410,3 +410,48 @@ class NVMeCliDriver(BaseNVMeDriver):
             f"--namespace-id={namespace_id}",
             f"--controllers={controllers}"
         ], json_out=False)
+    
+# ── Identify (Generic & FDP Parsing) ──────────────────────────────────────
+
+    def identify(self, cns: int, csi: int = 0, nsid: int = 0, data_len: int = 4096) -> dict:
+        """
+        Generic nvme identify wrapper.
+        Supports specific CNS (Controller/Namespace Structure) and CSI (Command Set Identifier).
+        """
+        args = [
+            "identify", self.device,
+            f"--cns={cns}",
+            f"--csi={csi}",
+            f"--namespace-id={nsid}",
+            f"--data-len={data_len}"
+        ]
+        return self.run_cmd(args, json_out=True)
+
+    def get_identify_parsed_fdp(self) -> dict:
+        """
+        Issues Identify Controller (CNS 01h) and parses FDP-specific attributes.
+        Returns a dictionary with extracted bits for CTRATT and VWC.
+        """
+        res = self.id_ctrl()
+        if res["rc"] != 0:
+            return {"error": res.get("stderr", "Identify Controller failed")}
+            
+        data = res.get("data", {})
+        
+        # Helper to safely convert nvme-cli's hex strings or ints
+        def _to_int(val):
+            if isinstance(val, int): return val
+            if isinstance(val, str): return int(val, 16) if val.startswith("0x") else int(val)
+            return 0
+
+        ctratt = _to_int(data.get("ctratt", 0))
+        vwc = _to_int(data.get("vwc", 0))
+        
+        return {
+            "ctratt_raw": ctratt,
+            "fdps": bool(ctratt & (1 << 19)),           # CTRATT Bit 19: FDP Supported
+            "fcm": bool(ctratt & (1 << 18)),            # CTRATT Bit 18: Fixed Capacity Management
+            "vwc_raw": vwc,
+            "vwc_present": bool(vwc & 0x1),             # VWC Bit 0: Volatile Write Cache Present
+            "vwc_flush_behavior": (vwc >> 1) & 0x3      # VWC Bits 2:1: Flush Behavior
+        }
