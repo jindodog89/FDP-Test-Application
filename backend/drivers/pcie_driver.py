@@ -155,32 +155,37 @@ class PCIeDriver:
     def from_nvme_device(cls, nvme_dev: str) -> "PCIeDriver":
         """
         Build a PCIeDriver from an NVMe device path like /dev/nvme0 or /dev/nvme0n1.
-        Resolves the PCI BDF via sysfs symlink.
-        """
-        # Strip namespace suffix: /dev/nvme0n1 -> nvme0
-        base = os.path.basename(nvme_dev)
-        ctrl = base.split("n")[0]  # nvme0n1 -> nvme0, nvme0 -> nvme0
+        Resolves the PCI BDF via the sysfs 'device' symlink.
 
-        # Walk sysfs to find PCI address for this NVMe controller
+        'ls -l /sys/class/nvme/nvme*' shows each controller as a symlink:
+            /sys/class/nvme/nvme0 -> ../../devices/pci0000:00/.../0000:01:00.0/nvme/nvme0
+        """
+        # Strip namespace suffix: /dev/nvme0n1 -> nvme0, /dev/nvme0 -> nvme0
+        import re as _re
+        ctrl = _re.sub(r'n\d+$', '', os.path.basename(nvme_dev))
+
         sysfs_nvme = f"/sys/class/nvme/{ctrl}"
         if not os.path.exists(sysfs_nvme):
             raise FileNotFoundError(
                 f"NVMe controller '{ctrl}' not found in sysfs at {sysfs_nvme}"
             )
 
-        # Resolve: /sys/class/nvme/nvme0 -> .../0000:01:00.0/nvme/nvme0
-        real = os.path.realpath(sysfs_nvme)
-        # Walk up until we find a directory whose name looks like a BDF
-        parts = real.split("/")
-        bdf = None
-        for part in reversed(parts):
-            if cls._is_bdf(part):
-                bdf = part
-                break
+        # /sys/class/nvme/<ctrl>/device is a symlink -> PCI device directory
+        device_link = f"{sysfs_nvme}/device"
+        if not os.path.exists(device_link):
+            raise FileNotFoundError(
+                f"Sysfs 'device' symlink not found: {device_link}"
+            )
 
-        if not bdf:
+        # Resolve the symlink — its basename is the BDF
+        real = os.path.realpath(device_link)
+        bdf = os.path.basename(real)
+
+        if not cls._is_bdf(bdf):
             raise RuntimeError(
-                f"Could not resolve PCI BDF for {nvme_dev} from sysfs path: {real}"
+                f"Could not resolve PCI BDF for {nvme_dev}: "
+                f"'{device_link}' resolved to '{real}' "
+                f"(basename '{bdf}' is not a valid BDF)"
             )
 
         return cls(bdf)

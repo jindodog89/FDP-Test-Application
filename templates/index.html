@@ -177,8 +177,13 @@ header {
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
-.cat-tabs::-webkit-scrollbar { display: none; }
+.cat-tabs::-webkit-scrollbar { height: 3px; }
+.cat-tabs::-webkit-scrollbar-track { background: transparent; }
+.cat-tabs::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.cat-tabs::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 .cat-tab {
   padding: 8px 12px;
   font-size: 11px;
@@ -430,6 +435,7 @@ header {
 .btn-control:hover        { border-color: var(--accent); color: var(--accent); }
 .btn-control.danger:hover { border-color: var(--red);    color: var(--red); }
 .btn-control.create:hover { border-color: var(--green);  color: var(--green); }
+.btn-control.info:hover   { border-color: var(--accent); color: var(--accent); }
 .btn-control:disabled     { opacity: 0.4; cursor: not-allowed; }
 
 /* ── Modals ─────────────────────────────────────────────────────────────── */
@@ -496,7 +502,61 @@ select.field-input { cursor: pointer; }
 .ns-result-box .ok  { color: var(--green); }
 .ns-result-box .err { color: var(--red); }
 .ns-result-box .hd  { color: var(--accent); font-weight: 700; }
-.ns-result-box .mut { color: var(--muted); }
+/* ── FDP Config modal ───────────────────────────────────────────────────── */
+.fdp-cfg-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.fdp-cfg-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.fdp-cfg-card.full { grid-column: 1 / -1; }
+.fdp-cfg-card-title {
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.7px;
+  color: var(--accent); margin-bottom: 6px;
+}
+.fdp-cfg-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 11px; padding: 2px 0;
+  border-bottom: 1px solid rgba(46,51,80,0.5);
+}
+.fdp-cfg-row:last-child { border-bottom: none; }
+.fdp-cfg-key   { color: var(--muted); }
+.fdp-cfg-val   { color: var(--text);  font-family: 'Cascadia Code','Fira Code',monospace; font-size: 10.5px; }
+.fdp-cfg-val.ok  { color: var(--green); }
+.fdp-cfg-val.err { color: var(--red);   }
+.fdp-cfg-val.warn{ color: var(--yellow);}
+.fdp-cfg-cmd-row {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; padding: 3px 0;
+  border-bottom: 1px solid rgba(46,51,80,0.4);
+}
+.fdp-cfg-cmd-row:last-child { border-bottom: none; }
+.fdp-cfg-cmd-text {
+  flex: 1; font-family: 'Cascadia Code','Fira Code',monospace;
+  font-size: 10px; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.fdp-cfg-badge {
+  font-size: 9px; font-weight: 700; padding: 1px 5px;
+  border-radius: 8px; flex-shrink: 0;
+}
+.fdp-cfg-badge.ok  { background: rgba(34,197,94,0.15);  color: var(--green); }
+.fdp-cfg-badge.err { background: rgba(239,68,68,0.15);  color: var(--red);   }
+.ruhs-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.ruhs-table th {
+  text-align: left; font-size: 10px; font-weight: 700;
+  color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;
+  padding: 3px 6px 5px; border-bottom: 1px solid var(--border);
+}
+.ruhs-table td { padding: 3px 6px; border-bottom: 1px solid rgba(46,51,80,0.4); }
+.ruhs-table tr:last-child td { border-bottom: none; }
+.ruhs-table td:first-child { color: var(--muted); width: 40px; }
 </style>
 </head>
 <body>
@@ -549,6 +609,7 @@ select.field-input { cursor: pointer; }
       <div class="cat-tab"       data-cat="Basic"  onclick="switchTab('Basic')">🔍 Basic  <span class="tab-count" id="tc-Basic">0</span></div>
       <div class="cat-tab"       data-cat="IO"     onclick="switchTab('IO')">⚙ IO  <span class="tab-count" id="tc-IO">0</span></div>
       <div class="cat-tab"       data-cat="Reset"  onclick="switchTab('Reset')">🔄 Reset  <span class="tab-count" id="tc-Reset">0</span></div>
+      <div class="cat-tab"       data-cat="Admin"  onclick="switchTab('Admin')">🛠 Admin  <span class="tab-count" id="tc-Admin">0</span></div>
     </div>
 
     <!-- Search results info label -->
@@ -621,9 +682,30 @@ select.field-input { cursor: pointer; }
 <!-- ═══ Device Control bar ═══════════════════════════════════════════════ -->
 <div class="device-control">
   <span class="device-control-label">Device Control</span>
+  <button class="btn-control info" onclick="ctrlExtractFDPConfig()" id="ctrl-extract-fdp">🔬 Extract DUT FDP Config</button>
   <button class="btn-control" onclick="ctrlListNS()" id="ctrl-list-ns">📋 List Namespaces</button>
   <button class="btn-control danger" onclick="ctrlDeleteAllNS()" id="ctrl-del-ns">🗑 Delete All Namespaces</button>
   <button class="btn-control create" onclick="openCreateNSModal()" id="ctrl-create-ns">＋ Create Namespace</button>
+</div>
+
+<!-- ═══ FDP Config Modal ═══════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="fdp-config-modal">
+  <div class="modal" style="width:640px">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">DUT FDP Configuration</div>
+        <div class="modal-subtitle" id="fdp-cfg-subtitle">Device snapshot</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('fdp-config-modal')">×</button>
+    </div>
+    <div class="modal-body" id="fdp-cfg-body">
+      <!-- Populated dynamically by ctrlExtractFDPConfig() -->
+    </div>
+    <div class="modal-footer">
+      <span style="font-size:10px;color:var(--muted);margin-right:auto" id="fdp-cfg-ts"></span>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('fdp-config-modal')">Close</button>
+    </div>
+  </div>
 </div>
 
 <!-- ═══ Namespace Result Modal ════════════════════════════════════════════ -->
@@ -748,10 +830,11 @@ const CAT_GROUP = {
   'IO':        'IO',
   'Endurance': 'IO',
   'Reset':     'Reset',
+  'Admin':     'Admin',
 };
 const CAT_ICON = {
   Basic: '🔍', Placement: '📌', Reclaim: '♻', Events: '📋',
-  IO: '⚙', Endurance: '📈', Reset: '🔄', General: '🧪',
+  IO: '⚙', Endurance: '📈', Reset: '🔄', General: '🧪', Admin: '🛠',
 };
 function groupOf(cat) { return CAT_GROUP[cat] || 'Basic'; }
 
@@ -816,7 +899,7 @@ async function refreshDevices() {
 
 // ── Tab counts ─────────────────────────────────────────────────────────────
 function updateTabCounts() {
-  const counts = { All: availableTests.length, Basic: 0, IO: 0, Reset: 0 };
+  const counts = { All: availableTests.length, Basic: 0, IO: 0, Reset: 0, Admin: 0 };
   availableTests.forEach(t => {
     const g = groupOf(t.category);
     if (counts[g] !== undefined) counts[g]++;
@@ -890,7 +973,7 @@ function renderLibrary() {
     tests.forEach(t => container.appendChild(makeCard(t)));
   } else {
     // "All" tab: group by display category (Basic / IO / Reset)
-    const groups = { Basic: [], IO: [], Reset: [] };
+    const groups = { Basic: [], IO: [], Reset: [], Admin: [] };
     tests.forEach(t => {
       const g = groupOf(t.category);
       (groups[g] = groups[g] || []).push(t);
@@ -899,6 +982,7 @@ function renderLibrary() {
       Basic:  { icon: '🔍', label: 'Basic' },
       IO:     { icon: '⚙',  label: 'IO' },
       Reset:  { icon: '🔄', label: 'Reset' },
+      Admin:  { icon: '🛠', label: 'Admin' },
     };
     Object.entries(groups).forEach(([grp, items]) => {
       if (!items.length) return;
@@ -1187,6 +1271,161 @@ function showNSResult(title, subtitle, lines) {
     `<span class="${cls||''}">${escHtml(text)}</span>\n`
   ).join('');
   openModal('ns-result-modal');
+}
+
+async function ctrlExtractFDPConfig() {
+  const device = getSelectedDevice();
+  if (!device) return alert('Select a device first.');
+  const btn = document.getElementById('ctrl-extract-fdp');
+  btn.disabled = true; btn.textContent = '⏳ Extracting…';
+
+  try {
+    const r = await fetch('/api/ctrl/extract-fdp-config', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({device})
+    }).then(x => x.json());
+
+    if (r.error) {
+      alert('Error: ' + r.error);
+      return;
+    }
+
+    // ── Timestamp + subtitle ─────────────────────────────────────────────
+    document.getElementById('fdp-cfg-subtitle').textContent = device;
+    document.getElementById('fdp-cfg-ts').textContent =
+      'Captured: ' + (r.captured_at ? new Date(r.captured_at).toLocaleString() : '—');
+
+    // ── Build modal body ─────────────────────────────────────────────────
+    const body = document.getElementById('fdp-cfg-body');
+    body.innerHTML = '';
+
+    const grid = document.createElement('div');
+    grid.className = 'fdp-cfg-grid';
+
+    // Helper: create a card
+    function card(title, full = false) {
+      const c = document.createElement('div');
+      c.className = 'fdp-cfg-card' + (full ? ' full' : '');
+      const t = document.createElement('div');
+      t.className = 'fdp-cfg-card-title';
+      t.textContent = title;
+      c.appendChild(t);
+      return c;
+    }
+
+    // Helper: key-value row
+    function kvRow(key, val, valClass = '') {
+      const row = document.createElement('div');
+      row.className = 'fdp-cfg-row';
+      row.innerHTML = `<span class="fdp-cfg-key">${escHtml(key)}</span>`
+                    + `<span class="fdp-cfg-val ${valClass}">${escHtml(String(val ?? '—'))}</span>`;
+      return row;
+    }
+
+    // ── Card 1: FDP Enable State ─────────────────────────────────────────
+    const c1 = card('FDP Enable State');
+    const enabledVal  = r.fdp_enabled === true  ? 'ENABLED'
+                      : r.fdp_enabled === false ? 'DISABLED'
+                      : 'Unknown';
+    const enabledCls  = r.fdp_enabled === true  ? 'ok'
+                      : r.fdp_enabled === false ? 'err'
+                      : 'warn';
+    c1.appendChild(kvRow('FDP Status', enabledVal, enabledCls));
+
+    if (r.fdp_feature && typeof r.fdp_feature === 'object') {
+      for (const [k, v] of Object.entries(r.fdp_feature)) {
+        c1.appendChild(kvRow(k, v));
+      }
+    }
+    grid.appendChild(c1);
+
+    // ── Card 2: RUHS Summary ──────────────────────────────────────────────
+    const c2 = card('Reclaim Unit Handles');
+    c2.appendChild(kvRow('Total Handles', r.n_ruhs ?? '—',
+                          r.n_ruhs > 0 ? 'ok' : 'warn'));
+
+    if (Array.isArray(r.ruhs) && r.ruhs.length > 0) {
+      const tbl = document.createElement('table');
+      tbl.className = 'ruhs-table';
+      tbl.innerHTML = '<thead><tr><th>RUHID</th><th>RUAMW</th></tr></thead>';
+      const tb = document.createElement('tbody');
+      r.ruhs.forEach(h => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${escHtml(String(h.ruhid ?? '?'))}</td>`
+                     + `<td>${escHtml(String(h.ruamw ?? '—'))}</td>`;
+        tb.appendChild(tr);
+      });
+      tbl.appendChild(tb);
+      c2.appendChild(tbl);
+    } else {
+      c2.appendChild(kvRow('Handles', 'None / unavailable', 'warn'));
+    }
+    grid.appendChild(c2);
+
+    // ── Card 3: FDP Configs (condensed) ──────────────────────────────────
+    const c3 = card('FDP Configurations');
+    if (r.fdp_configs && typeof r.fdp_configs === 'object') {
+      const flat = flattenObj(r.fdp_configs, '', 3);  // max depth 3
+      for (const [k, v] of Object.entries(flat).slice(0, 12)) {
+        c3.appendChild(kvRow(k, v));
+      }
+      if (Object.keys(flat).length > 12)
+        c3.appendChild(kvRow('…', `(${Object.keys(flat).length - 12} more fields)`,'warn'));
+    } else {
+      c3.appendChild(kvRow('Status', 'Not available', 'warn'));
+    }
+    grid.appendChild(c3);
+
+    // ── Card 4: FDP Stats (condensed) ────────────────────────────────────
+    const c4 = card('FDP Statistics');
+    if (r.fdp_stats && typeof r.fdp_stats === 'object') {
+      const flat = flattenObj(r.fdp_stats, '', 2);
+      for (const [k, v] of Object.entries(flat).slice(0, 8)) {
+        c4.appendChild(kvRow(k, v));
+      }
+    } else {
+      c4.appendChild(kvRow('Status', 'Not available', 'warn'));
+    }
+    grid.appendChild(c4);
+
+    // ── Card 5: Commands issued (full width) ──────────────────────────────
+    const c5 = card('Commands Issued', true);
+    (r.commands || []).forEach(cmd => {
+      const row = document.createElement('div');
+      row.className = 'fdp-cfg-cmd-row';
+      const badge = `<span class="fdp-cfg-badge ${cmd.ok ? 'ok' : 'err'}">${cmd.ok ? 'OK' : `RC ${cmd.rc}`}</span>`;
+      const stderr = cmd.stderr ? ` <span style="color:var(--red);font-size:9px">${escHtml(cmd.stderr.slice(0,80))}</span>` : '';
+      row.innerHTML = badge
+        + `<span class="fdp-cfg-cmd-text" title="${escHtml(cmd.cmd)}">${escHtml(cmd.cmd)}</span>`
+        + stderr;
+      c5.appendChild(row);
+    });
+    grid.appendChild(c5);
+
+    body.appendChild(grid);
+    openModal('fdp-config-modal');
+
+  } finally {
+    btn.disabled = false; btn.textContent = '🔬 Extract DUT FDP Config';
+  }
+}
+
+// Flatten a nested object to dot-notation keys up to maxDepth levels deep
+function flattenObj(obj, prefix = '', maxDepth = 3, depth = 0) {
+  const out = {};
+  if (depth >= maxDepth || typeof obj !== 'object' || obj === null) {
+    out[prefix || '(root)'] = obj;
+    return out;
+  }
+  for (const [k, v] of Object.entries(obj)) {
+    const key = prefix ? `${prefix}.${k}` : k;
+    if (typeof v === 'object' && v !== null && !Array.isArray(v) && depth + 1 < maxDepth) {
+      Object.assign(out, flattenObj(v, key, maxDepth, depth + 1));
+    } else {
+      out[key] = Array.isArray(v) ? `[${v.length} items]` : v;
+    }
+  }
+  return out;
 }
 
 async function ctrlListNS() {

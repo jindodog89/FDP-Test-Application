@@ -236,6 +236,25 @@ def ctrl_create_ns():
         "commands":       commands,
     })
 
+@app.route("/api/ctrl/extract-fdp-config", methods=["POST"])
+def ctrl_extract_fdp_config():
+    """
+    Run all FDP discovery commands against the selected device and store
+    the results in the module-level dut_config singleton so that test
+    scripts can access them via `from tests.dut_config import dut_config`.
+    """
+    data   = request.json or {}
+    device = data.get("device")
+    if not device:
+        return jsonify({"error": "No device specified"}), 400
+
+    from tests.dut_config import dut_config
+
+    driver  = device_manager._make_driver(device)
+    summary = dut_config.populate(driver)
+    return jsonify(summary)
+
+
 @socketio.on("connect")
 def on_connect():
     emit("connected", {"message": "Connected to FDP Test Tool"})

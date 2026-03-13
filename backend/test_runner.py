@@ -20,7 +20,10 @@ class TestRunner:
             from tests.registry import ALL_TESTS
             return [cls.meta() for cls in ALL_TESTS]
         except Exception as e:
-            return []
+            import traceback
+            return [{"id": "__import_error__", "name": "Registry import failed",
+                     "description": traceback.format_exc(),
+                     "category": "General", "tags": []}]
 
     def start_run(self, device: str, test_ids: list) -> str:
         run_id = str(uuid.uuid4())[:8]
