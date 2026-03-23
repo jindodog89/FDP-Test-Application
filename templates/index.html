@@ -250,6 +250,40 @@ header {
   overflow: hidden;
 }
 .test-card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+
+/* Configurable-params panel */
+.test-card-params-toggle {
+  display: flex; align-items: center; gap: 5px;
+  margin-top: 7px; padding-top: 6px;
+  border-top: 1px solid var(--border);
+  font-size: 10px; font-weight: 600; color: var(--muted);
+  cursor: pointer; user-select: none;
+  transition: color 0.15s;
+}
+.test-card-params-toggle:hover { color: var(--accent); }
+.test-card-params-toggle .toggle-arrow {
+  font-size: 9px; transition: transform 0.2s; display: inline-block;
+}
+.test-card-params-toggle.open .toggle-arrow { transform: rotate(90deg); }
+.test-card-params-body {
+  display: none; margin-top: 8px;
+}
+.test-card-params-body.open { display: block; }
+.params-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+}
+.param-field { display: flex; flex-direction: column; gap: 3px; }
+.param-field label {
+  font-size: 10px; color: var(--muted); font-weight: 600;
+}
+.param-field input {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 5px; color: var(--text);
+  font-size: 11px; padding: 4px 7px;
+  outline: none; transition: border-color 0.15s;
+  width: 100%;
+}
+.param-field input:focus { border-color: var(--accent); }
 .tag {
   font-size: 10px; padding: 1px 5px; border-radius: 8px;
   background: var(--surface2); color: var(--muted); border: 1px solid var(--border);
@@ -315,7 +349,7 @@ header {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: 8px; padding: 8px 10px;
   margin-bottom: 5px;
-  display: flex; align-items: center; gap: 8px;
+  display: flex; flex-direction: column;
   cursor: grab; transition: all 0.12s;
 }
 .exec-item:hover { background: var(--surface2); }
@@ -352,6 +386,20 @@ header {
   cursor: pointer; padding: 2px 5px; border-radius: 4px; font-size: 15px; flex-shrink: 0;
 }
 .exec-remove:hover { color: var(--red); background: rgba(239,68,68,0.1); }
+.exec-item-inner { display: flex; align-items: center; gap: 8px; width: 100%; }
+.exec-params-toggle {
+  display: flex; align-items: center; gap: 5px;
+  margin-top: 6px; padding-top: 6px;
+  border-top: 1px solid var(--border);
+  font-size: 10px; font-weight: 600; color: var(--muted);
+  cursor: pointer; user-select: none;
+  transition: color 0.15s;
+}
+.exec-params-toggle:hover { color: var(--accent); }
+.exec-params-toggle .toggle-arrow { font-size: 9px; transition: transform 0.2s; display: inline-block; }
+.exec-params-toggle.open .toggle-arrow { transform: rotate(90deg); }
+.exec-params-body { display: none; margin-top: 8px; }
+.exec-params-body.open { display: block; }
 
 .exec-footer {
   padding: 10px 12px;
@@ -361,6 +409,39 @@ header {
   gap: 8px;
   flex-shrink: 0;
 }
+.run-options {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.run-opt-label {
+  font-size: 11px; color: var(--muted); white-space: nowrap;
+}
+.run-opt-input {
+  width: 54px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 5px; color: var(--text);
+  font-size: 11px; padding: 3px 7px;
+  outline: none; transition: border-color 0.15s;
+}
+.run-opt-input:focus { border-color: var(--accent); }
+.run-opt-toggle {
+  display: flex; align-items: center; gap: 5px;
+  cursor: pointer; user-select: none;
+}
+.run-opt-toggle input[type=checkbox] { display: none; }
+.toggle-pill {
+  width: 30px; height: 16px; border-radius: 8px;
+  background: var(--surface3); border: 1px solid var(--border);
+  position: relative; transition: background 0.2s;
+  flex-shrink: 0;
+}
+.toggle-pill::after {
+  content: ''; position: absolute;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--muted); top: 2px; left: 2px;
+  transition: transform 0.2s, background 0.2s;
+}
+.run-opt-toggle input:checked + .toggle-pill { background: rgba(239,68,68,0.25); border-color: var(--red); }
+.run-opt-toggle input:checked + .toggle-pill::after { transform: translateX(14px); background: var(--red); }
 .exec-summary { display: flex; gap: 12px; font-size: 11px; align-items: center; }
 .sum-item { display: flex; align-items: center; gap: 4px; color: var(--muted); }
 .sum-dot { width: 7px; height: 7px; border-radius: 50%; }
@@ -650,6 +731,16 @@ select.field-input { cursor: pointer; }
     </div>
 
     <div class="exec-footer">
+      <div class="run-options">
+        <span class="run-opt-label">Cycles</span>
+        <input class="run-opt-input" id="run-cycles" type="number" value="1" min="1" max="9999" title="Number of times to repeat the full test queue">
+        <label class="run-opt-toggle" title="Stop the run immediately when any test fails">
+          <input type="checkbox" id="run-stop-on-error">
+          <div class="toggle-pill"></div>
+          <span class="run-opt-label">Stop on error</span>
+        </label>
+        <span id="run-cycle-indicator" style="margin-left:auto;font-size:11px;color:var(--accent);display:none"></span>
+      </div>
       <div class="exec-summary">
         <div class="sum-item"><div class="sum-dot pass"></div><span id="sum-pass">0 pass</span></div>
         <div class="sum-item"><div class="sum-dot fail"></div><span id="sum-fail">0 fail</span></div>
@@ -838,6 +929,19 @@ const CAT_ICON = {
 };
 function groupOf(cat) { return CAT_GROUP[cat] || 'Basic'; }
 
+// ── Configurable test parameter definitions ───────────────────────────────
+// Each entry: { label, key, type, default, min?, max? }
+const TEST_PARAMS = {
+  'nvme_write_user_controlled': [
+    { label: 'Namespace',        key: 'namespace',         type: 'number', default: 1,      min: 1 },
+    { label: 'Start LBA',        key: 'start_lba',         type: 'number', default: 0,      min: 0 },
+    { label: 'Block Count',      key: 'block_count',       type: 'number', default: 0,      min: 0 },
+    { label: 'Data Size (B)',    key: 'data_size',         type: 'number', default: 4096,   min: 512 },
+    { label: 'Placement Handle', key: 'placement_handle',  type: 'number', default: 0,      min: 0, max: 65535 },
+    { label: 'Data Source',      key: 'data_source',       type: 'text',   default: 'tests/IO_files/randints_4k.txt' },
+  ],
+};
+
 // ── Socket.IO ──────────────────────────────────────────────────────────────
 socket.on('connect', () => {
   document.getElementById('conn-dot').classList.add('connected');
@@ -847,7 +951,18 @@ socket.on('disconnect', () => {
   document.getElementById('conn-dot').classList.remove('connected');
   log('Disconnected from server', 'error');
 });
-socket.on('run_start',    d => log(`▶ Starting run ${d.run_id} — ${d.total} test(s)`, 'accent'));
+socket.on('run_start',    d => {
+  const cycleStr = d.cycles > 1 ? ` × ${d.cycles} cycles` : '';
+  log(`▶ Starting run ${d.run_id} — ${d.total} test(s)${cycleStr}`, 'accent');
+});
+socket.on('cycle_start',  d => {
+  log(`
+${'─'.repeat(44)}`, 'info');
+  log(`↻ Cycle ${d.cycle} / ${d.total_cycles}`, 'accent');
+  document.getElementById('run-cycle-indicator').textContent = `cycle ${d.cycle} / ${d.total_cycles}`;
+  queuedTests.forEach(t => t.status = 'idle');
+  renderQueue();
+});
 socket.on('test_start',   d => { log(`\n◉ [${d.index+1}] Running: ${d.name}`, 'heading'); updateQueueStatus(d.test_id, 'running'); });
 socket.on('test_log',     d => log('  ' + d.message, 'info'));
 socket.on('test_result',  d => {
@@ -863,9 +978,14 @@ socket.on('run_complete', d => {
   log('\n' + '═'.repeat(44), 'info');
   log(`Run complete: ${pass} pass / ${fail} fail / ${warn} warn`, pass===r.length?'success':'warn');
   showResultSummary(r.length, pass, fail, warn);
+  document.getElementById('run-cycle-indicator').style.display = 'none';
   setRunning(false); currentRunId = null;
 });
-socket.on('run_stopped',  () => { log('Run stopped by user', 'warn'); setRunning(false); currentRunId = null; });
+socket.on('run_stopped',  () => {
+  log('Run stopped by user', 'warn');
+  document.getElementById('run-cycle-indicator').style.display = 'none';
+  setRunning(false); currentRunId = null;
+});
 
 // ── Init ───────────────────────────────────────────────────────────────────
 async function init() {
@@ -891,8 +1011,12 @@ async function refreshDevices() {
       const o = document.createElement('option');
       o.value = d.path;
       o.textContent = `${d.path} — ${d.model} (${d.size_gb}GB)`;
+      if (d.dummy) o.textContent += ' [DUMMY]';
       sel.appendChild(o);
     });
+    // Auto-select the first real (non-dummy) device; fall back to index 0
+    const firstReal = r.devices.find(d => !d.dummy);
+    sel.value = firstReal ? firstReal.path : r.devices[0].path;
   }
   updateRunButton();
 }
@@ -1001,6 +1125,31 @@ function makeCard(t) {
   card.draggable = true;
   card.dataset.testId = t.id;
   const icon = CAT_ICON[t.category] || '🧪';
+  const paramDefs = TEST_PARAMS[t.id] || [];
+  const hasParams = paramDefs.length > 0;
+
+  // Build params panel HTML if this test is configurable
+  let paramsHtml = '';
+  if (hasParams) {
+    const fieldHtml = paramDefs.map(p => `
+      <div class="param-field">
+        <label>${escHtml(p.label)}</label>
+        <input type="${p.type}" data-param-key="${escHtml(p.key)}"
+               value="${escHtml(String(p.default))}"
+               ${p.min !== undefined ? `min="${p.min}"` : ''}
+               ${p.max !== undefined ? `max="${p.max}"` : ''}
+               placeholder="${escHtml(String(p.default))}">
+      </div>`).join('');
+    paramsHtml = `
+      <div class="test-card-params-toggle" data-for="${escHtml(t.id)}">
+        <span class="toggle-arrow">▶</span>
+        <span>Parameters</span>
+      </div>
+      <div class="test-card-params-body">
+        <div class="params-grid">${fieldHtml}</div>
+      </div>`;
+  }
+
   card.innerHTML = `
     <div class="test-card-header">
       <div class="test-card-icon">${icon}</div>
@@ -1011,7 +1160,24 @@ function makeCard(t) {
       <span class="cat-badge cat-${t.category}">${t.category}</span>
     </div>
     <div class="test-card-tags">${(t.tags||[]).map(tg=>`<span class="tag">${escHtml(tg)}</span>`).join('')}</div>
+    ${paramsHtml}
   `;
+
+  // Toggle params panel — stop propagation so it doesn't trigger drag
+  if (hasParams) {
+    const toggle = card.querySelector('.test-card-params-toggle');
+    const body   = card.querySelector('.test-card-params-body');
+    toggle.addEventListener('click', e => {
+      e.stopPropagation();
+      toggle.classList.toggle('open');
+      body.classList.toggle('open');
+    });
+    // Prevent input clicks/edits from triggering drag or dblclick-to-queue
+    body.addEventListener('mousedown', e => e.stopPropagation());
+    body.addEventListener('click',     e => e.stopPropagation());
+    body.addEventListener('dblclick',  e => e.stopPropagation());
+  }
+
   card.addEventListener('dragstart', e => {
     draggingId = t.id; draggingSource = 'library';
     e.dataTransfer.effectAllowed = 'copy';
@@ -1020,6 +1186,28 @@ function makeCard(t) {
   card.addEventListener('dragend', () => card.classList.remove('dragging'));
   card.addEventListener('dblclick', () => addToQueue(t.id));
   return card;
+}
+
+// Read current param values from a library card's input fields
+function readCardParams(testId) {
+  const card = document.querySelector(`#test-list .test-card[data-test-id="${testId}"]`)
+            || [...document.querySelectorAll('#test-list .test-card')]
+                 .find(c => c.dataset.testId === testId);
+  if (!card) return {};
+  const params = {};
+  const defs = TEST_PARAMS[testId] || [];
+  card.querySelectorAll('[data-param-key]').forEach(input => {
+    const key = input.dataset.paramKey;
+    const def = defs.find(d => d.key === key);
+    const raw = input.value.trim();
+    if (def && def.type === 'number') {
+      const n = raw === '' ? def.default : Number(raw);
+      params[key] = isNaN(n) ? def.default : n;
+    } else {
+      params[key] = raw === '' ? (def ? def.default : '') : raw;
+    }
+  });
+  return params;
 }
 
 // ── Drag & Drop — library → queue ─────────────────────────────────────────
@@ -1043,7 +1231,9 @@ function onDrop(e) {
 function addToQueue(testId) {
   const t = availableTests.find(x => x.id === testId);
   if (!t) return;
-  queuedTests.push({ id: testId, name: t.name, category: t.category, status: 'idle' });
+  const params = readCardParams(testId);
+  queuedTests.push({ id: testId, name: t.name, category: t.category, status: 'idle',
+                     params: Object.keys(params).length ? params : undefined });
   renderQueue();
 }
 
@@ -1079,13 +1269,50 @@ function renderQueue() {
     item.dataset.queueIdx = i;
     item.draggable = true;
     const icon = EXEC_ICON[t.category] || '🧪';
+
+    // Build params panel if this test is configurable
+    const paramDefs = TEST_PARAMS[t.id] || [];
+    const hasParams  = paramDefs.length > 0;
+    let execParamsHtml = '';
+    if (hasParams) {
+      const storedParams = t.params || {};
+      const fieldHtml = paramDefs.map(p => {
+        const val = storedParams[p.key] !== undefined ? storedParams[p.key] : p.default;
+        return `<div class="param-field">
+          <label>${escHtml(p.label)}</label>
+          <input type="${p.type}" data-param-key="${escHtml(p.key)}"
+                 value="${escHtml(String(val))}"
+                 ${p.min !== undefined ? `min="${p.min}"` : ''}
+                 ${p.max !== undefined ? `max="${p.max}"` : ''}
+                 placeholder="${escHtml(String(p.default))}">
+        </div>`;
+      }).join('');
+      execParamsHtml = `
+        <div class="exec-params-toggle">
+          <span class="toggle-arrow">▶</span>
+          <span>Parameters</span>
+        </div>
+        <div class="exec-params-body">
+          <div class="params-grid">${fieldHtml}</div>
+        </div>`;
+    }
+
     item.innerHTML = `
-      <span class="exec-handle" title="Drag to reorder">⠿</span>
-      <span class="exec-icon">${icon}</span>
-      <span class="exec-name">${escHtml(t.name)}</span>
-      <div class="exec-status ${t.status}">${statusIcon(t.status)}</div>
-      <button class="exec-remove" onclick="removeFromQueue(${i})" title="Remove">×</button>
+      <div class="exec-item-inner">
+        <span class="exec-handle" title="Drag to reorder">⠿</span>
+        <span class="exec-icon">${icon}</span>
+        <span class="exec-name">${escHtml(t.name)}</span>
+        <div class="exec-status ${t.status}">${statusIcon(t.status)}</div>
+        <button class="exec-remove" title="Remove">×</button>
+      </div>
+      ${execParamsHtml}
     `;
+
+    // Wire remove button (can't use inline onclick with CSP-safe approach)
+    item.querySelector('.exec-remove').addEventListener('click', e => {
+      e.stopPropagation();
+      removeFromQueue(i);
+    });
 
     // Drag start from queue (reorder)
     item.addEventListener('dragstart', e => {
@@ -1124,6 +1351,37 @@ function renderQueue() {
       renderQueue();
     });
 
+    // Params panel toggle + live input → queuedTests sync
+    if (hasParams) {
+      const toggle = item.querySelector('.exec-params-toggle');
+      const body   = item.querySelector('.exec-params-body');
+      toggle.addEventListener('click', e => {
+        e.stopPropagation();
+        toggle.classList.toggle('open');
+        body.classList.toggle('open');
+      });
+      body.addEventListener('mousedown', e => e.stopPropagation());
+      body.addEventListener('click',     e => e.stopPropagation());
+      body.addEventListener('dblclick',  e => e.stopPropagation());
+      // Live-sync: update queuedTests[i].params as the user types
+      body.querySelectorAll('[data-param-key]').forEach(input => {
+        input.addEventListener('input', () => {
+          if (!queuedTests[i]) return;
+          const defs = TEST_PARAMS[queuedTests[i].id] || [];
+          if (!queuedTests[i].params) queuedTests[i].params = {};
+          const key = input.dataset.paramKey;
+          const def = defs.find(d => d.key === key);
+          const raw = input.value.trim();
+          if (def && def.type === 'number') {
+            const n = raw === '' ? def.default : Number(raw);
+            queuedTests[i].params[key] = isNaN(n) ? def.default : n;
+          } else {
+            queuedTests[i].params[key] = raw === '' ? (def ? def.default : '') : raw;
+          }
+        });
+      });
+    }
+
     zone.appendChild(item);
   });
 
@@ -1158,12 +1416,20 @@ function updateSummary() {
 async function runTests() {
   const device = document.getElementById('device-select').value;
   if (!device || !queuedTests.length) return;
+  const cycles      = Math.max(1, parseInt(document.getElementById('run-cycles').value) || 1);
+  const stopOnError = document.getElementById('run-stop-on-error').checked;
   queuedTests.forEach(t => t.status = 'idle');
+  document.getElementById('run-cycle-indicator').style.display = cycles > 1 ? '' : 'none';
+  document.getElementById('run-cycle-indicator').textContent   = cycles > 1 ? `cycle 1 / ${cycles}` : '';
   renderQueue(); clearLog(); hideResultSummary(); setRunning(true);
   const r = await fetch('/api/run', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ device, tests: queuedTests.map(t => t.id) })
+    body: JSON.stringify({ device, tests: queuedTests.map(t => t.id),
+                           params: Object.fromEntries(
+                             queuedTests.filter(t => t.params).map(t => [t.id, t.params])
+                           ),
+                           cycles, stop_on_error: stopOnError })
   }).then(x => x.json());
   currentRunId = r.run_id;
 }

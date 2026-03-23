@@ -1,0 +1,311 @@
+15:10:37  ========================================================================
+15:10:37  RUN  : 902aef41
+15:10:37  DEV  : /dev/nvme0n1
+15:10:37  TESTS: admin_validate_fdp_stats_monotonicity, admin_validate_hbw_accuracy, admin_calculate_waf, admin_dwpd_calculation, admin_validate_event_log_header, admin_validate_event_invalid_pid, admin_validate_event_masking, admin_validate_event_ordering, admin_event_log_retention
+15:10:37  ========================================================================
+15:10:37  
+15:10:37  ────────────────────────────────────────────────────────────
+15:10:37  TEST START: [admin_validate_fdp_stats_monotonicity] Validate FDP Statistics Monotonicity
+15:10:37  ────────────────────────────────────────────────────────────
+15:10:37  CMD: nvme fdp stats /dev/nvme0n1 -e 1 -o json
+15:10:37  RC : 0
+15:10:37  OUT: {
+  "hbmw":60128858112,
+  "mbmw":61431939072,
+  "mbe":290816262144
+}
+15:10:37  CMD: nvme write /dev/nvme0n1 --namespace-id=1 --start-block=0 --block-count=4095 --data-size=16777216 --data=/dev/zero --dir-type=0 --dir-spec=0
+15:10:37  RC : 1
+15:10:37  ERR: submit-io: Invalid argument
+15:10:37  TEST END  : [admin_validate_fdp_stats_monotonicity] status=fail  msg=Write activity failed: submit-io: Invalid argument
+
+15:10:38  
+15:10:38  ────────────────────────────────────────────────────────────
+15:10:38  TEST START: [admin_validate_hbw_accuracy] Validate Host Bytes Written Accuracy
+15:10:38  ────────────────────────────────────────────────────────────
+15:10:38  CMD: nvme fdp stats /dev/nvme0n1 -e 1 -o json
+15:10:38  RC : 0
+15:10:38  OUT: {
+  "hbmw":60128858112,
+  "mbmw":61431939072,
+  "mbe":290816262144
+}
+15:10:38  CMD: nvme write /dev/nvme0n1 --namespace-id=1 --start-block=0 --block-count=4095 --data-size=16777216 --data=/dev/zero --dir-type=0 --dir-spec=0
+15:10:38  RC : 1
+15:10:38  ERR: submit-io: Invalid argument
+15:10:38  TEST END  : [admin_validate_hbw_accuracy] status=fail  msg=Write activity failed: submit-io: Invalid argument
+
+15:10:38  
+15:10:38  ────────────────────────────────────────────────────────────
+15:10:38  TEST START: [admin_calculate_waf] Calculate & Validate Write-Amplification Factor (WAF)
+15:10:38  ────────────────────────────────────────────────────────────
+15:10:38  CMD: nvme set-feature /dev/nvme0n1 --feature-id=29 --value=0 --cdw12=1
+15:10:38  RC : 1
+15:10:38  ERR: NVMe status: Invalid Field in Command: A reserved coded value or an unsupported value in a defined field(0x2)
+15:10:38  CMD: nvme set-feature /dev/nvme0n1 --feature-id=29 --value=1 --cdw12=1
+15:10:38  RC : 1
+15:10:38  ERR: NVMe status: Invalid Field in Command: A reserved coded value or an unsupported value in a defined field(0x2)
+15:10:39  CMD: nvme write /dev/nvme0n1 --namespace-id=1 --start-block=0 --block-count=4095 --data-size=16777216 --data=/dev/zero --dir-type=2 --dir-spec=0
+15:10:40  RC : 1
+15:10:40  ERR: submit-io: Invalid argument
+15:10:40  TEST END  : [admin_calculate_waf] status=fail  msg=Workload failed: submit-io: Invalid argument
+
+15:10:40  
+15:10:40  ────────────────────────────────────────────────────────────
+15:10:40  TEST START: [admin_dwpd_calculation] DWPD Calculation Feasibility
+15:10:40  ────────────────────────────────────────────────────────────
+15:10:40  CMD: nvme fdp stats /dev/nvme0n1 -e 1 -o json
+15:10:40  RC : 0
+15:10:40  OUT: {
+  "hbmw":60128858112,
+  "mbmw":61431939072,
+  "mbe":290816262144
+}
+15:10:40  CMD: nvme id-ctrl /dev/nvme0n1 -o json
+15:10:40  RC : 0
+15:10:40  OUT: {
+  "vid":7260,
+  "ssvid":7260,
+  "sn":"SN IS 0x0100        ",
+  "mn":"Skhynix PEB210 NVMe 8TB                 ",
+  "fr":"71091A50",
+  "rab":3,
+  "ieee":11330606,
+  "cmic":0,
+  "mdts":7,
+  "cntlid":1,
+  "ver":131328,
+  "rtd3r":20000000,
+  "rtd3e":10000000,
+  "oaes":8960,
+  "ctratt":2687632,
+  "rrls":0,
+  "bpcap":1,
+  "nssl":0,
+  "plsi":0,
+  "cntrltype":1,
+  "fguid":"00000000-0000-0000-0000-000000000000",
+  "crdt1":0,
+  "crdt2":0,
+  "crdt3":0,
+  "crcap":0,
+  "nvmsr":1,
+  "vwci":255,
+  "mec":3,
+  "oacs":1663,
+  "acl":7,
+  "aerl":3,
+  "frmw":55,
+  "lpa":126,
+  "elpe":255,
+  "npss":8,
+  "avscc":1,
+  "apsta":0,
+  "wctemp":350,
+  "cctemp":358,
+  "mtfa":10,
+  "hmpre":0,
+  "hmmin":0,
+  "tnvmcap":7681501126656,
+  "unvmcap":0,
+  "rpmbs":0,
+  "edstt":30,
+  "dsto":1,
+  "fwug":1,
+  "kas":0,
+  "hctma":0,
+  "mntmt":0,
+  "mxtmt":0,
+  "sanicap":1073741839,
+  "hmminds":0,
+  "hmmaxd":0,
+  "nsetidmax":0,
+  "endgidmax":1,
+  "anatt":0,
+  "anacap":0,
+  "anagrpmax":0,
+  "nanagrpid":0,
+  "pels":80,
+  "domainid":0,
+  "kpioc":0,
+  "mptfawr":10,
+  "megcap":0,
+  "tmpthha":0,
+  "cqt":0,
+  "sqes":102,
+  "cqes":68,
+  "maxcmd":0,
+  "nn":8,
+  "oncs":5087,
+  "fuses":1,
+  "fna":4,
+  "vwc":6,
+  "awun":0,
+  "awupf":0,
+  "icsvscc":1,
+  "nwpc":0,
+  "acwu":127,
+  "ocfs":5,
+  "sgls":0,
+  "mnan":0,
+  "maxdna":8,
+  "maxcna":8,
+  "oaqd":0,
+  "rhiri":0,
+  "hirt":0,
+  "cmmrtd":0,
+  "nmmrtd":0,
+  "minmrtg":0,
+  "maxmrtg":0,
+  "trattr":0,
+  "mcudmq":0,
+  "mnsudmq":0,
+  "mcmr":0,
+  "nmcmr":0,
+  "mcdqpc":0,
+  "ioccsz":0,
+  "iorcsz":0,
+  "icdoff":0,
+  "fcatt":0,
+  "msdbd":0,
+  "ofcs":0,
+  "psds":[
+    {
+      "max_power":3500,
+      "max_power_scale":0,
+      "non-operational_state":0,
+      "entry_lat":100000,
+      "exit_lat":100000,
+      "read_tput":0,
+      "read_lat":0,
+      "write_tput":0,
+      "write_lat":0,
+      "idle_power":500,
+      "idle_scale":2,
+      "active_power":0,
+      "active_power_work":0,
+      "active_scale":0,
+      "emerg_power_fail_recover_time":0,
+      "emerg_power_fail_recover_scale"
+15:10:40  CMD: nvme smart-log /dev/nvme0n1 -o json
+15:10:40  RC : 0
+15:10:40  OUT: {
+  "critical_warning":0,
+  "temperature":310,
+  "avail_spare":100,
+  "spare_thresh":10,
+  "percent_used":0,
+  "endurance_grp_critical_warning_summary":0,
+  "data_units_read":117556,
+  "data_units_written":117440,
+  "host_read_commands":14689521,
+  "host_write_commands":14679896,
+  "controller_busy_time":0,
+  "power_cycles":5,
+  "power_on_hours":266,
+  "unsafe_shutdowns":4,
+  "media_errors":0,
+  "num_err_log_entries":0,
+  "warning_temp_time":0,
+  "critical_comp_time":0,
+  "temperature_sensor_1":313,
+  "temperature_sensor_2":308,
+  "thm_temp1_trans_count":0,
+  "thm_temp2_trans_count":0,
+  "thm_temp1_total_time":0,
+  "thm_temp2_total_time":0
+}
+15:10:40  TEST END  : [admin_dwpd_calculation] status=pass  msg=DWPD Calculation Feasible. Result: 0.000706
+15:10:40  
+15:10:40  ────────────────────────────────────────────────────────────
+15:10:40  TEST START: [admin_validate_event_log_header] Validate Event Log Header & Count
+15:10:40  ────────────────────────────────────────────────────────────
+15:10:40  CMD: nvme fdp events /dev/nvme0n1 -e 1 -o json
+15:10:40  RC : 0
+15:10:40  OUT: {
+  "n":0,
+  "events":[]
+}
+15:10:40  TEST END  : [admin_validate_event_log_header] status=pass  msg=Header validation successful. Count: 0
+15:10:40  
+15:10:40  ────────────────────────────────────────────────────────────
+15:10:40  TEST START: [admin_validate_event_invalid_pid] Validate Event Descriptor - Invalid Placement ID
+15:10:40  ────────────────────────────────────────────────────────────
+15:10:40  CMD: nvme set-feature /dev/nvme0n1 --feature-id=30 --value=256 --cdw12=1
+15:11:10  CMD TIMEOUT: nvme set-feature /dev/nvme0n1 --feature-id=30 --value=256 --cdw12=1
+15:11:10  CMD: nvme write /dev/nvme0n1 --namespace-id=1 --start-block=0 --block-count=1 --data-size=4096 --data=/dev/zero --dir-type=2 --dir-spec=57005
+15:11:11  RC : 0
+15:11:11  ERR: Rounding data size to fit block count (8192 bytes)
+write: Success
+15:11:12  CMD: nvme fdp events /dev/nvme0n1 -e 1 -o json
+15:11:12  RC : 0
+15:11:12  OUT: {
+  "n":0,
+  "events":[]
+}
+15:11:12  TEST END  : [admin_validate_event_invalid_pid] status=fail  msg=Log 23h is empty; expected an Invalid PID event.
+15:11:12  
+15:11:12  ────────────────────────────────────────────────────────────
+15:11:12  TEST START: [admin_validate_event_masking] Validate Event Masking (Disabled Events)
+15:11:12  ────────────────────────────────────────────────────────────
+15:11:12  CMD: nvme fdp events /dev/nvme0n1 -e 1 -o json
+15:11:12  RC : 0
+15:11:12  OUT: {
+  "n":0,
+  "events":[]
+}
+15:11:12  CMD: nvme set-feature /dev/nvme0n1 --feature-id=30 --value=0 --cdw12=1
+15:11:42  CMD TIMEOUT: nvme set-feature /dev/nvme0n1 --feature-id=30 --value=0 --cdw12=1
+15:11:42  CMD: nvme write /dev/nvme0n1 --namespace-id=1 --start-block=0 --block-count=1 --data-size=4096 --data=/dev/zero --dir-type=2 --dir-spec=48879
+15:11:42  RC : 0
+15:11:42  ERR: Rounding data size to fit block count (8192 bytes)
+write: Success
+15:11:43  CMD: nvme fdp events /dev/nvme0n1 -e 1 -o json
+15:11:43  RC : 0
+15:11:43  OUT: {
+  "n":0,
+  "events":[]
+}
+15:11:43  TEST END  : [admin_validate_event_masking] status=pass  msg=Controller successfully masked the disabled FDP event.
+15:11:43  
+15:11:43  ────────────────────────────────────────────────────────────
+15:11:43  TEST START: [admin_validate_event_ordering] Validate Event Timestamp & Ordering
+15:11:43  ────────────────────────────────────────────────────────────
+15:11:43  CMD: nvme set-feature /dev/nvme0n1 --feature-id=30 --value=256 --cdw12=1
+15:12:13  CMD TIMEOUT: nvme set-feature /dev/nvme0n1 --feature-id=30 --value=256 --cdw12=1
+15:12:13  CMD: nvme write /dev/nvme0n1 --namespace-id=1 --start-block=0 --block-count=1 --data-size=4096 --data=/dev/zero --dir-type=2 --dir-spec=170
+15:12:14  RC : 0
+15:12:14  ERR: Rounding data size to fit block count (8192 bytes)
+write: Success
+15:12:15  CMD: nvme write /dev/nvme0n1 --namespace-id=1 --start-block=1 --block-count=1 --data-size=4096 --data=/dev/zero --dir-type=2 --dir-spec=187
+15:12:15  RC : 0
+15:12:15  ERR: Rounding data size to fit block count (8192 bytes)
+write: Success
+15:12:16  CMD: nvme fdp events /dev/nvme0n1 -e 1 -o json
+15:12:16  RC : 0
+15:12:16  OUT: {
+  "n":0,
+  "events":[]
+}
+15:12:16  TEST END  : [admin_validate_event_ordering] status=fail  msg=Failed to capture both generated events.
+15:12:16  
+15:12:16  ────────────────────────────────────────────────────────────
+15:12:16  TEST START: [admin_event_log_retention] FDP Event Log Retention (Enablement Cycle)
+15:12:16  ────────────────────────────────────────────────────────────
+15:12:16  CMD: nvme set-feature /dev/nvme0n1 --feature-id=30 --value=256 --cdw12=1
+15:12:46  CMD TIMEOUT: nvme set-feature /dev/nvme0n1 --feature-id=30 --value=256 --cdw12=1
+15:12:46  CMD: nvme write /dev/nvme0n1 --namespace-id=1 --start-block=0 --block-count=1 --data-size=4096 --data=/dev/zero --dir-type=2 --dir-spec=52428
+15:12:47  RC : 0
+15:12:47  ERR: Rounding data size to fit block count (8192 bytes)
+write: Success
+15:12:48  CMD: nvme fdp events /dev/nvme0n1 -e 1 -o json
+15:12:48  RC : 0
+15:12:48  OUT: {
+  "n":0,
+  "events":[]
+}
+15:12:48  TEST END  : [admin_event_log_retention] status=fail  msg=Failed to generate initial event for retention test.
+15:12:48  
+15:12:48  ========================================================================
+15:12:48  RUN COMPLETE: complete  pass=3 fail=6 warn=0  elapsed=130.7s
+15:12:48  ========================================================================

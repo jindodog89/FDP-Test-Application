@@ -21,6 +21,17 @@ device_manager = DeviceManager()
 test_runner = TestRunner(socketio)
 
 
+def _extract_nsid(raw) -> int:
+    """
+    Normalise a raw nsid value from nvme list-ns JSON output.
+    nvme-cli may return each entry as a plain int (1), a string ("1"),
+    or a dict ({"nsid": 1}) — handle all three.
+    """
+    if isinstance(raw, dict):
+        return int(raw.get("nsid", raw.get("NSID", 0)))
+    return int(raw)
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -54,7 +65,12 @@ def run_tests():
         return jsonify({"error": "No device specified"}), 400
     if not test_ids:
         return jsonify({"error": "No tests specified"}), 400
-    run_id = test_runner.start_run(device, test_ids)
+    run_id = test_runner.start_run(
+        device, test_ids,
+        params=data.get("params", {}),
+        cycles=int(data.get("cycles", 1)),
+        stop_on_error=bool(data.get("stop_on_error", False)),
+    )
     return jsonify({"run_id": run_id, "status": "started"})
 
 
@@ -93,8 +109,9 @@ def ctrl_list_ns():
         nsid_list = data_out
 
     for nsid in nsid_list[:32]:  # cap at 32 for safety
-        ns_info = {"nsid": int(nsid)}
-        id_result = driver.run_cmd(["id-ns", device, "-n", str(nsid)], json_out=True)
+        nsid_int = _extract_nsid(nsid)
+        ns_info = {"nsid": nsid_int}
+        id_result = driver.run_cmd(["id-ns", device, "-n", str(nsid_int)], json_out=True)
         if id_result["rc"] == 0:
             ns_data = id_result.get("data", {})
             if isinstance(ns_data, dict):
@@ -102,9 +119,14 @@ def ctrl_list_ns():
                 lbads  = ns_data.get("lbaf", [{}])[0].get("ds", 9) if ns_data.get("lbaf") else 9
                 lba_sz = 2 ** int(lbads) if lbads else 512
                 nsfeat = ns_data.get("nsfeat", 0)
+                # nsfeat may be a dict of bitfields or a plain int depending on nvme-cli version
+                if isinstance(nsfeat, dict):
+                    fdp_bit = bool(nsfeat.get("fdp", nsfeat.get("FDP", 0)))
+                else:
+                    fdp_bit = bool(int(nsfeat) & (1 << 4))
                 ns_info["size_gb"]  = round(int(nsze) * lba_sz / 1e9, 2)
                 ns_info["lba_size"] = lba_sz
-                ns_info["fdp"]      = bool(int(nsfeat) & (1 << 4))
+                ns_info["fdp"]      = fdp_bit
         namespaces.append(ns_info)
 
     if not namespaces and result["stdout"].strip():
@@ -136,7 +158,7 @@ def ctrl_delete_all_ns():
 
     results = []
     for nsid in nsid_list:
-        nsid = int(nsid)
+        nsid = _extract_nsid(nsid)
         # Detach first, then delete
         driver.run_cmd(["detach-ns", device, f"--namespace-id={nsid}", "--controllers=0x1"],
                        json_out=False)
@@ -215,7 +237,7 @@ def ctrl_create_ns():
             nsid_list = ns_data.get("nsid_list", ns_data.get("NamespaceList", []))
         elif isinstance(ns_data, list):
             nsid_list = ns_data
-        nsid = max((int(n) for n in nsid_list), default=1)
+        nsid = max((_extract_nsid(n) for n in nsid_list), default=1)
 
     # Attach the new namespace
     attach_args = [

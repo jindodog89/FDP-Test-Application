@@ -1,0 +1,291 @@
+14:31:55  ========================================================================
+14:31:55  RUN  : 9debec2c
+14:31:55  DEV  : /dev/nvme0n1
+14:31:55  TESTS: admin_create_ns_invalid_phl, admin_read_fdp_configs_log, admin_read_fdp_stats, admin_partial_log_page_read, admin_validate_fdp_configs_header, admin_validate_fdp_config_desc_header, admin_validate_fdp_attributes, admin_validate_reclaim_resources, admin_validate_maxpid, admin_validate_rgif
+14:31:55  ========================================================================
+14:31:55  
+14:31:55  ────────────────────────────────────────────────────────────
+14:31:55  TEST START: [admin_create_ns_invalid_phl] Create NS with Invalid Handle List
+14:31:55  ────────────────────────────────────────────────────────────
+14:31:55  CMD: nvme create-ns /dev/nvme0n1 --nsze=65536 --ncap=65536 --flbas=0 --dps=0 --nmic=0 --endg-id=1 --nphndls=1024
+14:31:55  RC : 1
+14:31:55  ERR: Invalid Placement handle list
+14:31:55  TEST END  : [admin_create_ns_invalid_phl] status=warn  msg=Rejected, but expected Invalid Field error. Got: invalid placement handle list
+
+14:31:55  
+14:31:55  ────────────────────────────────────────────────────────────
+14:31:55  TEST START: [admin_read_fdp_configs_log] Read FDP Configurations (Log 20h)
+14:31:55  ────────────────────────────────────────────────────────────
+14:31:55  CMD: nvme get-log /dev/nvme0n1 --log-id=32 --log-len=4096 -o json
+14:31:55  RC : 1
+14:31:55  OUT: {
+  "error":"Invalid Field in Command: A reserved coded value or an unsupported value in a defined field",
+  "type":"nvme"
+}
+14:31:55  TEST END  : [admin_read_fdp_configs_log] status=fail  msg=Failed to issue Get Log Page for LID 0x20.
+14:31:55  
+14:31:55  ────────────────────────────────────────────────────────────
+14:31:55  TEST START: [admin_read_fdp_stats] Read FDP Statistics (Log 22h)
+14:31:55  ────────────────────────────────────────────────────────────
+14:31:55  CMD: nvme fdp stats /dev/nvme0n1 -e 1 -o json
+14:31:55  RC : 0
+14:31:55  OUT: {
+  "hbmw":60128858112,
+  "mbmw":61431939072,
+  "mbe":290816262144
+}
+14:31:55  TEST END  : [admin_read_fdp_stats] status=pass  msg=Log 22h returned valid statistical counters.
+14:31:56  
+14:31:56  ────────────────────────────────────────────────────────────
+14:31:56  TEST START: [admin_partial_log_page_read] Partial Log Page Read (Boundary) - Log 20h
+14:31:56  ────────────────────────────────────────────────────────────
+14:31:56  CMD: nvme get-log /dev/nvme0n1 --log-id=32 --log-len=8
+14:31:56  RC : 1
+14:31:56  ERR: NVMe status: Invalid Field in Command: A reserved coded value or an unsupported value in a defined field(0x2)
+14:31:56  TEST END  : [admin_partial_log_page_read] status=fail  msg=Controller rejected partial length read of Log 20h.
+14:31:56  
+14:31:56  ────────────────────────────────────────────────────────────
+14:31:56  TEST START: [admin_validate_fdp_configs_header] Validate FDP Log Header & Configuration Count
+14:31:56  ────────────────────────────────────────────────────────────
+14:31:56  CMD: nvme get-log /dev/nvme0n1 --log-id=32 --log-len=4096 -o json
+14:31:56  RC : 1
+14:31:56  OUT: {
+  "error":"Invalid Field in Command: A reserved coded value or an unsupported value in a defined field",
+  "type":"nvme"
+}
+14:31:56  TEST END  : [admin_validate_fdp_configs_header] status=fail  msg=Failed to retrieve log: 
+14:31:56  
+14:31:56  ────────────────────────────────────────────────────────────
+14:31:56  TEST START: [admin_validate_fdp_config_desc_header] Validate FDP Configuration Descriptor Header
+14:31:56  ────────────────────────────────────────────────────────────
+14:31:56  CMD: nvme fdp configs /dev/nvme0n1 --endgrp-id=1 -o json
+14:31:56  RC : 0
+14:31:56  OUT: {
+  "n":0,
+  "configs":[
+    {
+      "fdpa":128,
+      "vss":0,
+      "nrg":1,
+      "nruh":16,
+      "nnss":8,
+      "runs":23729799168,
+      "erutl":604800
+    }
+  ]
+}
+14:31:56  TEST END  : [admin_validate_fdp_config_desc_header] status=fail  msg=Descriptor Size is zero or FDP Configuration Index is missing.
+14:31:56  
+14:31:56  ────────────────────────────────────────────────────────────
+14:31:56  TEST START: [admin_validate_fdp_attributes] Validate FDP Attributes (VWC Status)
+14:31:56  ────────────────────────────────────────────────────────────
+14:31:56  CMD: nvme id-ctrl /dev/nvme0n1 -o json
+14:31:56  RC : 0
+14:31:56  OUT: {
+  "vid":7260,
+  "ssvid":7260,
+  "sn":"SN IS 0x0100        ",
+  "mn":"Skhynix PEB210 NVMe 8TB                 ",
+  "fr":"71091A50",
+  "rab":3,
+  "ieee":11330606,
+  "cmic":0,
+  "mdts":7,
+  "cntlid":1,
+  "ver":131328,
+  "rtd3r":20000000,
+  "rtd3e":10000000,
+  "oaes":8960,
+  "ctratt":2687632,
+  "rrls":0,
+  "bpcap":1,
+  "nssl":0,
+  "plsi":0,
+  "cntrltype":1,
+  "fguid":"00000000-0000-0000-0000-000000000000",
+  "crdt1":0,
+  "crdt2":0,
+  "crdt3":0,
+  "crcap":0,
+  "nvmsr":1,
+  "vwci":255,
+  "mec":3,
+  "oacs":1663,
+  "acl":7,
+  "aerl":3,
+  "frmw":55,
+  "lpa":126,
+  "elpe":255,
+  "npss":8,
+  "avscc":1,
+  "apsta":0,
+  "wctemp":350,
+  "cctemp":358,
+  "mtfa":10,
+  "hmpre":0,
+  "hmmin":0,
+  "tnvmcap":7681501126656,
+  "unvmcap":0,
+  "rpmbs":0,
+  "edstt":30,
+  "dsto":1,
+  "fwug":1,
+  "kas":0,
+  "hctma":0,
+  "mntmt":0,
+  "mxtmt":0,
+  "sanicap":1073741839,
+  "hmminds":0,
+  "hmmaxd":0,
+  "nsetidmax":0,
+  "endgidmax":1,
+  "anatt":0,
+  "anacap":0,
+  "anagrpmax":0,
+  "nanagrpid":0,
+  "pels":80,
+  "domainid":0,
+  "kpioc":0,
+  "mptfawr":10,
+  "megcap":0,
+  "tmpthha":0,
+  "cqt":0,
+  "sqes":102,
+  "cqes":68,
+  "maxcmd":0,
+  "nn":8,
+  "oncs":5087,
+  "fuses":1,
+  "fna":4,
+  "vwc":6,
+  "awun":0,
+  "awupf":0,
+  "icsvscc":1,
+  "nwpc":0,
+  "acwu":127,
+  "ocfs":5,
+  "sgls":0,
+  "mnan":0,
+  "maxdna":8,
+  "maxcna":8,
+  "oaqd":0,
+  "rhiri":0,
+  "hirt":0,
+  "cmmrtd":0,
+  "nmmrtd":0,
+  "minmrtg":0,
+  "maxmrtg":0,
+  "trattr":0,
+  "mcudmq":0,
+  "mnsudmq":0,
+  "mcmr":0,
+  "nmcmr":0,
+  "mcdqpc":0,
+  "ioccsz":0,
+  "iorcsz":0,
+  "icdoff":0,
+  "fcatt":0,
+  "msdbd":0,
+  "ofcs":0,
+  "psds":[
+    {
+      "max_power":3500,
+      "max_power_scale":0,
+      "non-operational_state":0,
+      "entry_lat":100000,
+      "exit_lat":100000,
+      "read_tput":0,
+      "read_lat":0,
+      "write_tput":0,
+      "write_lat":0,
+      "idle_power":500,
+      "idle_scale":2,
+      "active_power":0,
+      "active_power_work":0,
+      "active_scale":0,
+      "emerg_power_fail_recover_time":0,
+      "emerg_power_fail_recover_scale"
+14:31:56  CMD: nvme fdp configs /dev/nvme0n1 --endgrp-id=1 -o json
+14:31:56  RC : 0
+14:31:56  OUT: {
+  "n":0,
+  "configs":[
+    {
+      "fdpa":128,
+      "vss":0,
+      "nrg":1,
+      "nruh":16,
+      "nnss":8,
+      "runs":23729799168,
+      "erutl":604800
+    }
+  ]
+}
+14:31:56  TEST END  : [admin_validate_fdp_attributes] status=skip  msg=No FDP Configurations found.
+14:31:56  
+14:31:56  ────────────────────────────────────────────────────────────
+14:31:56  TEST START: [admin_validate_reclaim_resources] Validate Reclaim Resources (NRG & NRUH)
+14:31:56  ────────────────────────────────────────────────────────────
+14:31:56  CMD: nvme fdp configs /dev/nvme0n1 --endgrp-id=1 -o json
+14:31:56  RC : 0
+14:31:56  OUT: {
+  "n":0,
+  "configs":[
+    {
+      "fdpa":128,
+      "vss":0,
+      "nrg":1,
+      "nruh":16,
+      "nnss":8,
+      "runs":23729799168,
+      "erutl":604800
+    }
+  ]
+}
+14:31:56  TEST END  : [admin_validate_reclaim_resources] status=skip  msg=No FDP Configurations found.
+14:31:57  
+14:31:57  ────────────────────────────────────────────────────────────
+14:31:57  TEST START: [admin_validate_maxpid] Validate Max Placement Identifiers (MAXPID)
+14:31:57  ────────────────────────────────────────────────────────────
+14:31:57  CMD: nvme fdp configs /dev/nvme0n1 --endgrp-id=1 -o json
+14:31:57  RC : 0
+14:31:57  OUT: {
+  "n":0,
+  "configs":[
+    {
+      "fdpa":128,
+      "vss":0,
+      "nrg":1,
+      "nruh":16,
+      "nnss":8,
+      "runs":23729799168,
+      "erutl":604800
+    }
+  ]
+}
+14:31:57  TEST END  : [admin_validate_maxpid] status=skip  msg=No FDP Configurations found.
+14:31:57  
+14:31:57  ────────────────────────────────────────────────────────────
+14:31:57  TEST START: [admin_validate_rgif] Validate Reclaim Group Identifier Format (RGIF)
+14:31:57  ────────────────────────────────────────────────────────────
+14:31:57  CMD: nvme fdp configs /dev/nvme0n1 --endgrp-id=1 -o json
+14:31:57  RC : 0
+14:31:57  OUT: {
+  "n":0,
+  "configs":[
+    {
+      "fdpa":128,
+      "vss":0,
+      "nrg":1,
+      "nruh":16,
+      "nnss":8,
+      "runs":23729799168,
+      "erutl":604800
+    }
+  ]
+}
+14:31:57  TEST END  : [admin_validate_rgif] status=skip  msg=No FDP Configurations found.
+14:31:57  
+14:31:57  ========================================================================
+14:31:57  RUN COMPLETE: complete  pass=1 fail=4 warn=1  elapsed=2.1s
+14:31:57  ========================================================================

@@ -487,28 +487,79 @@ class NVMeCliDriver(BaseNVMeDriver):
 
     # ── Passthrough ───────────────────────────────────────────────────────────
 
-    def admin_passthru(self, opcode: int, cdw10: int = 0, cdw12: int = 0,
-                       data_len: int = 4096, read: bool = True) -> dict:
-        args = [
-            "admin-passthru", self.device,
-            f"--opcode={opcode}",
-            f"--cdw10={cdw10}",
-            f"--cdw12={cdw12}",
-            f"--data-len={data_len}",
-        ]
+    def admin_passthru(self, opcode: int,
+                       cdw10: int = 0, cdw11: int = 0, cdw12: int = 0,
+                       cdw13: int = 0, cdw14: int = 0, cdw15: int = 0,
+                       data_len: int = 0, read: bool = False,
+                       write: bool = False, input_file: str = None) -> dict:
+        """Generic Admin Passthrough (opcode 0x09 = Set Features, etc.).
+
+        cdw10-15    : Command Dwords 10-15; only non-zero values are appended.
+        data_len    : Transfer length in bytes (0 = no data).
+        read/write  : Direction flags for the data transfer.
+        input_file  : Host-to-device data file path (--input-file=<path>).
+        """
+        args = ["admin-passthru", self.device, f"--opcode={opcode}"]
+        for n, v in ((10, cdw10), (11, cdw11), (12, cdw12),
+                     (13, cdw13), (14, cdw14), (15, cdw15)):
+            if v:
+                args.append(f"--cdw{n}={v}")
+        if data_len:
+            args.append(f"--data-len={data_len}")
         if read:
             args.append("--read")
-        return self.run_cmd(args)
+        if write:
+            args.append("--write")
+        if input_file:
+            args.append(f"--input-file={input_file}")
+        return self.run_cmd(args, json_out=False)
 
-    def io_passthru(self, opcode: int, namespace: int = 1, cdw12: int = 0,
-                    data_len: int = 4096, read: bool = True) -> dict:
+    def io_passthru(self, opcode: int, namespace: int = 1,
+                    cdw10: int = 0, cdw11: int = 0, cdw12: int = 0,
+                    cdw13: int = 0, cdw14: int = 0, cdw15: int = 0,
+                    data_len: int = 0, read: bool = False,
+                    write: bool = False, input_file: str = None) -> dict:
+        """Generic IO Passthrough.
+
+        cdw10-15    : Command Dwords 10-15; only non-zero values are appended.
+        data_len    : Transfer length in bytes (0 = no data).
+        read/write  : Direction flags for the data transfer.
+        input_file  : Host-to-device data file path (--input-file=<path>).
+        """
         args = [
             "io-passthru", self.device,
             f"--namespace-id={namespace}",
             f"--opcode={opcode}",
-            f"--cdw12={cdw12}",
-            f"--data-len={data_len}",
         ]
+        for n, v in ((10, cdw10), (11, cdw11), (12, cdw12),
+                     (13, cdw13), (14, cdw14), (15, cdw15)):
+            if v:
+                args.append(f"--cdw{n}={v}")
+        if data_len:
+            args.append(f"--data-len={data_len}")
         if read:
             args.append("--read")
-        return self.run_cmd(args)
+        if write:
+            args.append("--write")
+        if input_file:
+            args.append(f"--input-file={input_file}")
+        return self.run_cmd(args, json_out=False)
+
+    def set_feature_passthru(self, feature_id: int, value: int = 0,
+                              endgrp: int = 0, namespace: int = 0,
+                              save: bool = False) -> dict:
+        """Set Features via admin-passthru (opcode 0x09).
+        """
+        cdw10 = (feature_id & 0xFF) | (0x80000000 if save else 0)
+        args = [
+            "admin-passthru", self.device,
+            "--opcode=0x09",
+            f"--cdw10={cdw10}",
+        ]
+        if value:
+            args.append(f"--cdw11={value}")
+        if endgrp:
+            args.append(f"--cdw12={endgrp}")
+        if namespace:
+            args.append(f"--namespace-id={namespace}")
+        return self.run_cmd(args, json_out=False)
