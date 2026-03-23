@@ -3,92 +3,90 @@ Central test registry — add new test classes here and they automatically
 appear in the web UI. Import order determines default display order.
 """
 
-# ── Basic / status tests ──────────────────────────────────────────────────────
-from tests.basic.test_fdp_status       import TestFDPStatus
-from tests.basic.test_fdp_configs      import TestFDPConfigs
-from tests.basic.test_placement_ids    import TestPlacementIDs
-from tests.basic.test_reclaim_units    import TestReclaimUnits
-from tests.basic.test_fdp_events       import TestFDPEvents
+# ── Basic / status tests (B series) ──────────────────────────────────────────
+from tests.basic.B1_FDP_Status_Check                    import TestFDPStatus
+from tests.basic.B2_FDP_Configurations_Enumeration      import TestFDPConfigs
+from tests.basic.B3_Placement_Identifier_Verification   import TestPlacementIDs
+from tests.basic.B4_Reclaim_Unit_Handle_Status          import TestReclaimUnits
+from tests.basic.B5_FDP_Events_Log                      import TestFDPEvents
 
-# ── IO write tests ────────────────────────────────────────────────────────────
-from tests.io.test_nvme_write_valid_pid       import TestNVMeWriteValidPID
-from tests.io.test_nvme_write_user_controlled import TestNVMeWriteUserControlled
-from tests.io.test_nvme_write_invalid_pid     import TestNVMeWriteInvalidPID
-from tests.io.test_nvme_write_legacy          import TestNVMeWriteLegacy
+# ── IO write tests (I series) ─────────────────────────────────────────────────
+from tests.io.I1_NVMe_Write_Valid_Placement_ID          import TestNVMeWriteValidPID
+from tests.io.I2_NVMe_Write_Invalid_Placement_ID        import TestNVMeWriteInvalidPID
+from tests.io.I3_NVMe_Write_User_Controlled_Parameters  import TestNVMeWriteUserControlled
+from tests.io.I4_NVMe_Write_Legacy                      import TestNVMeWriteLegacy
 
-# ── IO Management tests ───────────────────────────────────────────────────────
-from tests.io.test_io_mgmt_send_valid         import TestIOMgmtSendValid
-from tests.io.test_io_mgmt_send_invalid       import TestIOMgmtSendInvalid
-from tests.io.test_io_mgmt_receive_valid      import TestIOMgmtReceiveValid
-from tests.io.test_io_mgmt_fdp_disabled       import TestIOMgmtFDPDisabled
+# ── IO Management tests (I series) ────────────────────────────────────────────
+from tests.io.I8_IO_Mgmt_Recv_Valid                     import TestIOMgmtReceiveValid
+from tests.io.I9_IO_Mgmt_Recv_Invalid                   import TestIOMgmtFDPDisabled
+from tests.io.I10_IO_Mgmt_Send_Valid                    import TestIOMgmtSendValid
+from tests.io.I11_IO_Mgmt_Send_Invalid                  import TestIOMgmtSendInvalid
 
-# ── Endurance / advanced tests ────────────────────────────────────────────────
-from tests.io.test_fdp_endurance              import TestFDPEndurance
-from tests.io.test_fdp_multi_handle_isolation import TestFDPMultiHandleIsolation
-from tests.io.test_fdp_handle_exhaustion      import TestFDPHandleCapacityExhaustion
+# ── Endurance / advanced tests (I series) ────────────────────────────────────
+from tests.io.I5_Endurance_WAF_Calculation              import TestFDPEndurance
+from tests.io.I6_Multi_Handle_Isolation                  import TestFDPMultiHandleIsolation
+from tests.io.I7_Placement_Handle_Capacity_Exhaustion   import TestFDPHandleCapacityExhaustion
 
-# ── Reset: FDP enable persistence ────────────────────────────────────────────
-from tests.reset.test_fdp_enable_persist_ctrl_reset      import TestFDPEnablePersistCtrlReset
-from tests.reset.test_fdp_enable_persist_subsystem_reset import TestFDPEnablePersistSubsystemReset
-from tests.reset.test_fdp_enable_persist_device_reset    import TestFDPEnablePersistDeviceReset
+# ── Reset: FDP enable persistence (R series) ─────────────────────────────────
+from tests.reset.R1_FDP_Enable_Persistence_Ctrl_Reset   import TestFDPEnablePersistCtrlReset
+from tests.reset.R2_FDP_Enable_Persistence_Link_Reset   import TestFDPEnablePersistDeviceReset
+from tests.reset.R3_FDP_Enable_Persistence_NSSR         import TestFDPEnablePersistSubsystemReset
 
-# ── Reset: FDP statistics persistence ────────────────────────────────────────
-from tests.reset.test_fdp_stats_persist_ctrl_reset       import TestFDPStatsPersistCtrlReset
-from tests.reset.test_fdp_stats_persist_subsystem_reset  import TestFDPStatsPersistSubsystemReset
-from tests.reset.test_fdp_stats_persist_device_reset     import TestFDPStatsPersistDeviceReset
+# ── Reset: FDP statistics persistence (R series) ─────────────────────────────
+from tests.reset.R5_FDP_Stats_Persistence_Ctrl_Reset    import TestFDPStatsPersistCtrlReset
+from tests.reset.R6_FDP_Stats_Persistence_Link_Reset    import TestFDPStatsPersistDeviceReset
+from tests.reset.R7_FDP_Stats_Persistence_NSSR          import TestFDPStatsPersistSubsystemReset
 
-# ── Reset: Directive, mapping and disable persistence ────────────────────────
-from tests.reset.test_fdp_directives_persist_reset       import TestFDPDirectivesPersistReset
-from tests.reset.test_ph_ruh_mapping_persistence         import TestPHToRUHMappingPersistence
-from tests.reset.test_fdp_disable_persistence            import TestFDPDisablePersistenceAcrossReset
+# ── Reset: Additional persistence (R series) ─────────────────────────────────
+from tests.reset.R4_FDP_Disable_Persistence             import TestFDPDisablePersistenceAcrossReset
+from tests.reset.R8_FDP_Stats_Monotonicity              import TestFDPStatsMonotonicity
+from tests.reset.R9_FDP_Configs_Persistence             import TestFDPConfigIndexPersistence
+from tests.reset.R10_Directives_Persistence             import TestFDPDirectivesPersistReset
+from tests.reset.R11_FDP_Event_Log_Persistence          import TestFDPEventLogPersistReset
+from tests.reset.R12_PH_to_RUH_Mapping_Persistence      import TestPHToRUHMappingPersistence
 
-# ── Reset: Additional persistence coverage ───────────────────────────────────
-from tests.reset.test_fdp_config_index_persistence       import TestFDPConfigIndexPersistence
-from tests.reset.test_fdp_stats_monotonicity             import TestFDPStatsMonotonicity
-from tests.reset.test_fdp_event_log_persistence          import TestFDPEventLogPersistReset
+# ── Admin: Identify Controller (A series) ────────────────────────────────────
+from tests.admin.A1_Validate_FDPS_Bit_in_Identify_Ctrl  import TestAdminIdentifyFDPS
+from tests.admin.A14_Identify_Fixed_Capacity_Management import TestAdminIdentifyFCM
+from tests.admin.A17_Identify_VWC_Global                import TestAdminIdentifyVWCGlobal
+from tests.admin.A16_Identify_VWC_Flush_Behavior        import TestAdminIdentifyVWCFlush
+from tests.admin.A15_Identify_FDPS_Command_Set_Consistency import TestAdminIdentifyFDPSCommandSet
 
-# ── Admin: Identify Controller ────────────────────────────────────────────────
-from tests.admin.test_admin_identify_fdps                import TestAdminIdentifyFDPS
-from tests.admin.test_admin_identify_fcm                 import TestAdminIdentifyFCM
-from tests.admin.test_admin_identify_vwc_global          import TestAdminIdentifyVWCGlobal
-from tests.admin.test_admin_identify_vwc_flush           import TestAdminIdentifyVWCFlush
-from tests.admin.test_admin_identify_fdps_command_set    import TestAdminIdentifyFDPSCommandSet
+# ── Admin: FDP Enable / Disable (A series) ───────────────────────────────────
+from tests.admin.A20_Enable_FDP_on_Empty_Endgrp         import TestAdminEnableFDPEmpty
+from tests.admin.A22_Enable_FDP_with_NS                 import TestAdminEnableFDPWithNS
+from tests.admin.A21_Enable_FDP_Invalid_Config          import TestAdminEnableFDPInvalidConfig
+from tests.admin.A27_Disable_FDP_Stats_Clear            import TestAdminDisableFDPStatsClear
 
-# ── Admin: FDP Enable / Disable ───────────────────────────────────────────────
-from tests.admin.test_admin_enable_fdp_empty             import TestAdminEnableFDPEmpty
-from tests.admin.test_admin_enable_fdp_with_ns           import TestAdminEnableFDPWithNS
-from tests.admin.test_admin_enable_fdp_invalid_config    import TestAdminEnableFDPInvalidConfig
-from tests.admin.test_admin_disable_fdp_stats_clear      import TestAdminDisableFDPStatsClear
+# ── Admin: Namespace Management (A series) ───────────────────────────────────
+from tests.admin.A19_Create_NS_Valid_PHL                import TestAdminCreateNSValidPHL
+from tests.admin.A18_Create_NS_Invalid_PHL              import TestAdminCreateNSInvalidPHL
 
-# ── Admin: Namespace Management ───────────────────────────────────────────────
-from tests.admin.test_admin_create_ns_valid_phl          import TestAdminCreateNSValidPHL
-from tests.admin.test_admin_create_ns_invalid_phl        import TestAdminCreateNSInvalidPHL
+# ── Admin: Log Page reads (A series) ─────────────────────────────────────────
+from tests.admin.A25_Read_FDP_Configs_Log               import TestAdminReadFDPConfigsLog
+from tests.admin.A26_Read_FDP_Stats                     import TestAdminReadFDPStats
+from tests.admin.A24_Partial_Log_Page_Read              import TestAdminPartialLogPageRead
 
-# ── Admin: Log Page reads ─────────────────────────────────────────────────────
-from tests.admin.test_admin_read_fdp_configs_log         import TestAdminReadFDPConfigsLog
-from tests.admin.test_admin_read_fdp_stats               import TestAdminReadFDPStats
-from tests.admin.test_admin_partial_log_page_read        import TestAdminPartialLogPageRead
+# ── Admin: Log Page validation (A series) ────────────────────────────────────
+from tests.admin.A2_Validate_FDP_Configs_Header         import TestAdminValidateFDPConfigsHeader
+from tests.admin.A3_Validate_FDP_Config_Desc_Header     import TestAdminValidateFDPConfigDescHeader
+from tests.admin.A5_Validate_FDP_Attributes             import TestAdminValidateFDPAttributes
+from tests.admin.A7_Validate_Reclaim_Resources          import TestAdminValidateReclaimResources
+from tests.admin.A6_Validate_Max_Placement_Identifiers  import TestAdminValidateMAXPID
+from tests.admin.A8_Validate_Reclaim_Group_Identifier_Format import TestAdminValidateRGIF
 
-# ── Admin: Log Page validation ────────────────────────────────────────────────
-from tests.admin.test_admin_validate_fdp_configs_header      import TestAdminValidateFDPConfigsHeader
-from tests.admin.test_admin_validate_fdp_config_desc_header  import TestAdminValidateFDPConfigDescHeader
-from tests.admin.test_admin_validate_fdp_attributes          import TestAdminValidateFDPAttributes
-from tests.admin.test_admin_validate_reclaim_resources       import TestAdminValidateReclaimResources
-from tests.admin.test_admin_validate_maxpid                  import TestAdminValidateMAXPID
-from tests.admin.test_admin_validate_rgif                    import TestAdminValidateRGIF
+# ── Admin: FDP Statistics (A series) ─────────────────────────────────────────
+from tests.admin.A13_Validate_FDP_Stats_Monotonicity    import TestAdminValidateFDPStatsMonotonicity
+from tests.admin.A10_Validate_Host_Bytes_Written_Accuracy import TestAdminValidateHBWAccuracy
+from tests.admin.A28_Calculate_WAF                      import TestAdminCalculateWAF
+from tests.admin.A29_DWPD_Calculation                   import TestAdminDWPDCalculation
 
-# ── Admin: FDP Statistics ─────────────────────────────────────────────────────
-from tests.admin.test_admin_validate_fdp_stats_monotonicity  import TestAdminValidateFDPStatsMonotonicity
-from tests.admin.test_admin_validate_hbw_accuracy            import TestAdminValidateHBWAccuracy
-from tests.admin.test_admin_calculate_waf                    import TestAdminCalculateWAF
-from tests.admin.test_admin_dwpd_calculation                 import TestAdminDWPDCalculation
-
-# ── Admin: FDP Events ─────────────────────────────────────────────────────────
-from tests.admin.test_admin_validate_event_log_header        import TestAdminValidateEventLogHeader
-from tests.admin.test_admin_validate_event_invalid_pid       import TestAdminValidateEventInvalidPID
-from tests.admin.test_admin_validate_event_masking           import TestAdminValidateEventMasking
-from tests.admin.test_admin_validate_event_ordering          import TestAdminValidateEventOrdering
-from tests.admin.test_admin_event_log_retention              import TestAdminEventLogRetention
+# ── Admin: FDP Events (A series) ─────────────────────────────────────────────
+from tests.admin.A4_Validate_Event_Log_Header           import TestAdminValidateEventLogHeader
+from tests.admin.A9_Validate_Event_Descriptor_Invalid_PID import TestAdminValidateEventInvalidPID
+from tests.admin.A11_Validate_Event_Masking_Disabled    import TestAdminValidateEventMasking
+from tests.admin.A12_Validate_Event_Timestamp_and_Ordering import TestAdminValidateEventOrdering
+from tests.admin.A23_Event_Log_Retention                import TestAdminEventLogRetention
 
 
 ALL_TESTS = [
@@ -101,15 +99,15 @@ ALL_TESTS = [
 
     # ── IO write ──────────────────────────────────────────────────────────────
     TestNVMeWriteValidPID,
-    TestNVMeWriteUserControlled,
     TestNVMeWriteInvalidPID,
+    TestNVMeWriteUserControlled,
     TestNVMeWriteLegacy,
 
     # ── IO Management ─────────────────────────────────────────────────────────
-    TestIOMgmtSendValid,
-    TestIOMgmtSendInvalid,
     TestIOMgmtReceiveValid,
     TestIOMgmtFDPDisabled,
+    TestIOMgmtSendValid,
+    TestIOMgmtSendInvalid,
 
     # ── Endurance / advanced ──────────────────────────────────────────────────
     TestFDPEndurance,
@@ -118,23 +116,21 @@ ALL_TESTS = [
 
     # ── Reset: FDP enable persistence ─────────────────────────────────────────
     TestFDPEnablePersistCtrlReset,
-    TestFDPEnablePersistSubsystemReset,
     TestFDPEnablePersistDeviceReset,
+    TestFDPEnablePersistSubsystemReset,
 
     # ── Reset: FDP statistics persistence ─────────────────────────────────────
     TestFDPStatsPersistCtrlReset,
-    TestFDPStatsPersistSubsystemReset,
     TestFDPStatsPersistDeviceReset,
+    TestFDPStatsPersistSubsystemReset,
 
-    # ── Reset: Directives, mapping, disable ───────────────────────────────────
-    TestFDPDirectivesPersistReset,
-    TestPHToRUHMappingPersistence,
+    # ── Reset: Additional persistence ─────────────────────────────────────────
     TestFDPDisablePersistenceAcrossReset,
-
-    # ── Reset: Additional coverage ────────────────────────────────────────────
-    TestFDPConfigIndexPersistence,
     TestFDPStatsMonotonicity,
+    TestFDPConfigIndexPersistence,
+    TestFDPDirectivesPersistReset,
     TestFDPEventLogPersistReset,
+    TestPHToRUHMappingPersistence,
 
     # ── Admin: Identify Controller ────────────────────────────────────────────
     TestAdminIdentifyFDPS,
