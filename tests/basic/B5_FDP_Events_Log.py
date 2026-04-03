@@ -8,6 +8,11 @@ class TestFDPEvents(BaseTest):
     tags = ["events", "log-page", "errors"]
 
     def run(self, driver, log) -> TestResult:
+        endgrp = getattr(self, "params", {}).get("endgrp", 1)
+        nsid   = getattr(self, "params", {}).get("namespace", 1)
+        # Enable all FDP event types — disabled by default on some devices after boot
+        driver.enable_all_fdp_events(endgrp=endgrp, namespace=nsid)
+
         log("Reading FDP events log...")
         result = driver.get_fdp_events(endgrp=1)
 

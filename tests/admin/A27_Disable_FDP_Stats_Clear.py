@@ -13,32 +13,29 @@ class TestAdminDisableFDPStatsClear(BaseTest):
     def run(self, driver, log) -> TestResult:
         endgrp = getattr(self, "params", {}).get("endgrp", 1)
         
-        log("Step 1: Issuing Set Features (FID 1Dh) to disable FDP...")
-        # cdw11/value: bit 0 = 0 (disable)
-        '''
-        disable_result = driver.set_feature(
-            feature_id=0x1D, 
-            value=0x0, 
-            cdw12=endgrp
-        )
-        '''
+        log("Step 1: Deleting all namespaces (required by spec before Set Features FID 1Dh)...")
+        saved_ns = self._delete_all_ns(driver, log)
+
+        log("Step 2: Issuing Set Features (FID 1Dh) to disable FDP...")
         disable_result = driver.set_feature_passthru(
-            feature_id=0x1D, 
-            value=0x0, 
-            endgrp=endgrp
+            feature_id=0x1D,
+            cdw11=endgrp,
+            cdw12=0x0,
+            save=True,
         )
 
         if disable_result["rc"] != 0:
             stderr = disable_result["stderr"].strip()
             log(f"⚠ Set Features to disable FDP was rejected: {stderr}")
-            log("  This device may not support FDP enable/disable via Set Features CDW12.")
+            log("  Restoring namespaces and skipping test.")
+            self._restore_ns(driver, log, saved_ns)
             return TestResult(TestStatus.SKIP,
                 f"Cannot disable FDP on this device (Set Features rejected: {stderr}). "
                 "Skipping stats-clear verification.")
-            
+
         log("✓ FDP successfully disabled.")
 
-        log("Step 2: Verifying FDP Events log is cleared...")
+        log("Step 3: Verifying FDP Events log is cleared...")
         events_res = driver.fdp_events(endgrp=endgrp)
         
         if events_res["rc"] == 0:
@@ -52,7 +49,7 @@ class TestAdminDisableFDPStatsClear(BaseTest):
         else:
              log("✓ FDP Events log correctly unreadable/empty while disabled.")
 
-        log("Step 3: Verifying FDP Statistics are cleared...")
+        log("Step 4: Verifying FDP Statistics are cleared...")
         stats_res = driver.fdp_stats(endgrp=endgrp)
         
         if stats_res["rc"] == 0:
@@ -67,4 +64,87 @@ class TestAdminDisableFDPStatsClear(BaseTest):
         else:
              log("✓ FDP Statistics correctly unreadable/empty while disabled.")
 
+        log("Step 5: Restoring namespaces...")
+        self._restore_ns(driver, log, saved_ns)
+
         return TestResult(TestStatus.PASS, "FDP successfully disabled and all statistics/events were cleared.")
+
+    # ── Namespace lifecycle helpers ───────────────────────────────────────────
+
+    def _delete_all_ns(self, driver, log) -> list:
+        """
+        Detach and delete every namespace on the device.
+        Returns a list of dicts with enough info to recreate each namespace:
+          {"nsid": N, "nsze": N, "ncap": N, "flbas": N, "nphndls": N, "endg_id": N}
+        Required by NVMe spec before enabling or disabling FDP via Set Features.
+        """
+        list_res = driver.run_cmd(["list-ns", driver.device, "--all"], json_out=True)
+        raw_list = []
+        if list_res["rc"] == 0:
+            data = list_res.get("data", {})
+            if isinstance(data, dict):
+                raw_list = data.get("nsid_list", data.get("NamespaceList", []))
+            elif isinstance(data, list):
+                raw_list = data
+
+        saved = []
+        for raw in raw_list:
+            nsid = int(raw["nsid"]) if isinstance(raw, dict) else int(raw)
+            # Collect NS geometry for later restoration
+            id_res = driver.run_cmd(["id-ns", driver.device, f"--namespace-id={nsid}"],
+                                    json_out=True)
+            ns_info = {"nsid": nsid, "nsze": 0, "ncap": 0, "flbas": 0,
+                       "nphndls": 0, "endg_id": 1}
+            if id_res["rc"] == 0:
+                d = id_res.get("data", {})
+                if isinstance(d, dict):
+                    ns_info["nsze"]  = int(d.get("nsze", 0))
+                    ns_info["ncap"]  = int(d.get("ncap", ns_info["nsze"]))
+                    ns_info["flbas"] = int(d.get("flbas", 0)) & 0xF
+            saved.append(ns_info)
+
+            # Detach then delete
+            driver.run_cmd(["detach-ns", driver.device,
+                            f"--namespace-id={nsid}", "--controllers=0x1"],
+                           json_out=False)
+            del_res = driver.run_cmd(["delete-ns", driver.device,
+                                      f"--namespace-id={nsid}"], json_out=False)
+            if del_res["rc"] == 0:
+                log(f"  ✓ Deleted NSID {nsid}")
+            else:
+                log(f"  ⚠ Delete NSID {nsid} failed: {del_res['stderr'].strip()}")
+
+        return saved
+
+    def _restore_ns(self, driver, log, saved: list):
+        """
+        Re-create and re-attach each namespace from the list returned by
+        _delete_all_ns(). Best-effort — logs warnings on any failure.
+        """
+        import re as _re
+        for ns in saved:
+            args = [
+                "create-ns", driver.device,
+                f"--nsze={ns['nsze']}",
+                f"--ncap={ns['ncap']}",
+                f"--flbas={ns['flbas']}",
+                "--nmic=0",
+                f"--endg-id={ns['endg_id']}",
+            ]
+            if ns["nphndls"] > 0:
+                args.append(f"--nphndls={ns['nphndls']}")
+            cr = driver.run_cmd(args, json_out=False)
+            if cr["rc"] != 0:
+                log(f"  ⚠ Restore create-ns failed: {cr['stderr'].strip()}")
+                continue
+            # Parse new NSID
+            out = cr["stdout"] + cr["stderr"]
+            m = _re.search(r'nsid[:\s]+(\d+)', out, _re.IGNORECASE)
+            new_nsid = int(m.group(1)) if m else ns["nsid"]
+            at = driver.run_cmd(["attach-ns", driver.device,
+                                  f"--namespace-id={new_nsid}", "--controllers=0x1"],
+                                json_out=False)
+            if at["rc"] == 0:
+                log(f"  ✓ Restored NSID {new_nsid}")
+            else:
+                log(f"  ⚠ Attach NSID {new_nsid} failed: {at['stderr'].strip()}")

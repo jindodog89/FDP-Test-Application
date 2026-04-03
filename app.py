@@ -135,6 +135,35 @@ def ctrl_list_ns():
     return jsonify({"namespaces": namespaces})
 
 
+@app.route("/api/ctrl/delete-ns", methods=["POST"])
+def ctrl_delete_ns():
+    """Delete a specific list of namespace IDs (detach then delete each)."""
+    data   = request.json or {}
+    device = data.get("device")
+    nsids  = data.get("nsids", [])
+    if not device:
+        return jsonify({"error": "No device specified"}), 400
+    if not nsids:
+        return jsonify({"error": "No namespace IDs specified"}), 400
+
+    driver  = device_manager._make_driver(device)
+    results = []
+    for nsid in nsids:
+        nsid = int(nsid)
+        driver.run_cmd(["detach-ns", device, f"--namespace-id={nsid}",
+                        "--controllers=0x1"], json_out=False)
+        del_res = driver.run_cmd(["delete-ns", device,
+                                  f"--namespace-id={nsid}"], json_out=False)
+        success = del_res["rc"] == 0 or "success" in del_res["stdout"].lower()
+        results.append({
+            "nsid":    nsid,
+            "success": success,
+            "message": "Deleted successfully" if success else del_res["stderr"].strip(),
+        })
+    deleted = sum(1 for r in results if r["success"])
+    return jsonify({"deleted": deleted, "results": results})
+
+
 @app.route("/api/ctrl/delete-all-ns", methods=["POST"])
 def ctrl_delete_all_ns():
     data   = request.json or {}
@@ -192,9 +221,9 @@ def ctrl_create_ns():
     nsze     = int(data["nsze"])
     ncap     = int(data["ncap"])
     flbas    = int(data["flbas"])
-    dps      = int(data.get("dps", 0))
     nmic     = int(data.get("nmic", 0))
     nphndls  = int(data.get("nphndls", 8))
+    phndls   = data.get("phndls", "").strip()   # comma-separated RUH indices
     endg_id  = int(data.get("endg_id", 1))
 
     create_args = [
@@ -202,12 +231,12 @@ def ctrl_create_ns():
         f"--nsze={nsze}",
         f"--ncap={ncap}",
         f"--flbas={flbas}",
-        f"--dps={dps}",
         f"--nmic={nmic}",
         f"--endg-id={endg_id}",
         f"--nphndls={nphndls}",
-        "--anagrp-id=1",
     ]
+    if phndls:
+        create_args.append(f"--phndls={phndls}")
 
     create_result = driver.run_cmd(create_args, json_out=False)
     commands = [" ".join(["nvme"] + create_args)]
@@ -257,6 +286,170 @@ def ctrl_create_ns():
         "attach_result":  attach_msg,
         "commands":       commands,
     })
+
+@app.route("/api/ctrl/run-fio", methods=["POST"])
+def ctrl_run_fio():
+    """
+    Build and execute a fio job from the GUI parameters.
+
+    Request JSON fields:
+      device         : NVMe device path (used for context / fallback)
+      ioengine       : fio IO engine (default: io_uring_cmd)
+      rw             : IO pattern (write, randwrite, read, randread, randrw)
+      bs             : Block size string (e.g. "4k", "64k")
+      iodepth        : IO queue depth (int)
+      numjobs        : Number of worker threads (int)
+      runtime        : Duration in seconds (int)
+      fdp            : Enable FDP directives (bool)
+      fdp_pli        : Placement List Index (int)
+      fdp_pli_select : PLI selection policy (roundrobin | random)
+      filename       : Device file for fio (should be /dev/ngXnY for io_uring_cmd)
+    """
+    import subprocess, tempfile, os, json as _json
+    data = request.json or {}
+
+    device       = data.get("device")
+    if not device:
+        return jsonify({"error": "No device specified"}), 400
+
+    ioengine     = data.get("ioengine",       "io_uring_cmd")
+    direct       = int(data.get("direct",      1))
+    rw           = data.get("rw",             "write")
+    bs           = data.get("bs",             "4k")
+    iodepth      = max(1, int(data.get("iodepth",   16)))
+    numjobs      = max(1, int(data.get("numjobs",    1)))
+    runtime      = max(1, int(data.get("runtime",    30)))
+    fdp          = bool(data.get("fdp",       True))
+    fdp_pli      = int(data.get("fdp_pli",    0))
+    fdp_pli_sel  = data.get("fdp_pli_select", "roundrobin")
+    filename     = data.get("filename",       device)
+
+    lines = [
+        "[global]",
+        f"ioengine={ioengine}",
+        f"direct={direct}",
+        f"rw={rw}",
+        f"bs={bs}",
+        f"iodepth={iodepth}",
+        f"numjobs={numjobs}",
+        f"runtime={runtime}",
+        "time_based=1",
+    ]
+    if fdp:
+        lines += [
+            "fdp=1",
+            f"fdp_pli={fdp_pli}",
+            f"fdp_pli_select={fdp_pli_sel}",
+        ]
+    lines += ["", "[job]", f"filename={filename}", ""]
+    job_text = "\n".join(lines)
+
+    try:
+        with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".fio", delete=False) as f_tmp:
+            f_tmp.write(job_text)
+            fio_path = f_tmp.name
+
+        result = subprocess.run(
+            ["fio", "--output-format=json", fio_path],
+            capture_output=True, text=True,
+            timeout=runtime + 60,
+        )
+        os.unlink(fio_path)
+    except FileNotFoundError:
+        return jsonify({"error": "fio not found — install with: sudo apt install fio"})
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": f"fio timed out after {runtime + 60}s"})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+    if result.returncode != 0:
+        stderr = (result.stderr or result.stdout).strip()
+        return jsonify({"error": stderr[:400] if stderr else "fio exited with non-zero status"})
+
+    # Parse fio JSON output
+    try:
+        fio_data = _json.loads(result.stdout)
+        jobs = fio_data.get("jobs", [])
+        if not jobs:
+            return jsonify({"error": "fio returned no job results"})
+        key = "write" if rw in ("write", "randwrite") else "read"
+        wr = jobs[0].get(key, {})
+        return jsonify({
+            "bw_mbs": round(wr.get("bw_bytes", 0) / 1e6, 2),
+            "iops":   round(wr.get("iops", 0), 1),
+            "lat_us": round(wr.get("lat_ns", {}).get("mean", 0) / 1000, 1),
+            "io_mb":  round(wr.get("io_bytes", 0) / 1e6, 1),
+        })
+    except Exception:
+        return jsonify({"error": "fio ran but output could not be parsed",
+                        "raw": result.stdout[:500]})
+
+
+@app.route("/api/ctrl/targeted-write", methods=["POST"])
+def ctrl_targeted_write():
+    """
+    Execute a targeted FDP write sequence from the GUI.
+    Writes `num_writes` consecutive 4 KB blocks starting at a random LBA
+    (0–1,000,000) to the specified placement handle (RUH index).
+
+    Request JSON:
+      device     : NVMe device path
+      ruh        : Reclaim Unit Handle index (int, 0-based)
+      num_writes : Number of consecutive writes (int, 1–1000)
+      data_file  : Path to data source file (optional, defaults to /dev/zero)
+    """
+    import random
+    data       = request.json or {}
+    device     = data.get("device")
+    ruh        = int(data.get("ruh", 0))
+    num_writes = max(1, min(int(data.get("num_writes", 10)), 1000))
+    data_file  = data.get("data_file", "/dev/zero")
+
+    if not device:
+        return jsonify({"error": "No device specified"}), 400
+
+    driver     = device_manager._make_driver(device)
+    start_lba  = random.randint(0, 1_000_000)
+
+    results  = []
+    errors   = 0
+
+    for i in range(num_writes):
+        lba = start_lba + i
+        res = driver.run_cmd([
+            "write", device,
+            f"--namespace-id=1",
+            f"--start-block={lba}",
+            "--block-count=0",
+            f"--data-size=4096",
+            f"--data={data_file}",
+            "--dir-type=2",
+            f"--dir-spec={ruh}",
+        ], json_out=False)
+
+        entry = {
+            "write":   i + 1,
+            "lba":     lba,
+            "ruh":     ruh,
+            "rc":      res["rc"],
+            "success": res["rc"] == 0 or "success" in res["stdout"].lower(),
+        }
+        if not entry["success"]:
+            entry["error"] = res["stderr"].strip() or res["stdout"].strip()
+            errors += 1
+        results.append(entry)
+
+    return jsonify({
+        "device":     device,
+        "ruh":        ruh,
+        "start_lba":  start_lba,
+        "num_writes": num_writes,
+        "completed":  len(results),
+        "errors":     errors,
+        "results":    results,
+    })
+
 
 @app.route("/api/ctrl/extract-fdp-config", methods=["POST"])
 def ctrl_extract_fdp_config():

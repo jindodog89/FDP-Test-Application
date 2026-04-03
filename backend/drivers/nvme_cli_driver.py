@@ -280,15 +280,68 @@ class NVMeCliDriver(BaseNVMeDriver):
 
     # ── FDP Events log ────────────────────────────────────────────────────────
 
-    def get_fdp_events(self, endgrp: int = 1) -> dict:
+    def get_fdp_events(self, endgrp: int = 1, host_events: bool = False) -> dict:
         """
         FDP Events log page (Log ID 0x23) — endurance group scoped.
-        Command: nvme fdp events <dev> -e <endgrp>
+        Command: nvme fdp events <dev> -e <endgrp> [-E]
+          host_events : Pass -E (--host-events) to include host-generated events
+                        such as Invalid Placement Identifier (event type 0x00).
+                        Without this flag those events are not returned.
         """
-        return self.run_cmd(["fdp", "events", self.device, "-e", str(endgrp)])
+        args = ["fdp", "events", self.device, "-e", str(endgrp)]
+        if host_events:
+            args.append("-E")
+        return self.run_cmd(args)
 
-    def fdp_events(self, endgrp: int = 1) -> dict:
-        return self.get_fdp_events(endgrp)
+    def fdp_events(self, endgrp: int = 1, host_events: bool = False) -> dict:
+        return self.get_fdp_events(endgrp, host_events=host_events)
+
+    def enable_all_fdp_events(self, endgrp: int = 1, namespace: int = 1,
+                               enable: bool = True) -> dict:
+        """
+        Enable (or disable) all 6 FDP event types via admin-passthru.
+
+        FDP event logging is disabled by default on some devices after boot.
+        This method must be called before reading the FDP event log in any
+        test that expects events to be present.
+
+        CDW layout (Set Features FID 0x1E, multi-event form):
+          CDW10 = 0x8000001E  (FID=0x1E | Save bit)
+          CDW11 = 0x6000      (event descriptor list length field)
+          CDW12 = 0x1 to enable, 0x0 to disable
+          data  = 6-byte payload listing event type codes:
+                  0x00 Invalid Placement Identifier
+                  0x01 RU Not Written
+                  0x02 RU Time Expiry
+                  0x03 Controller Level Reset
+                  0x80 Media Reallocated
+                  0x81 Implicitly Rotated
+
+          enable    : True to enable all events, False to disable all
+          endgrp    : Endurance Group Identifier
+          namespace : Namespace ID
+        """
+        import tempfile, os as _os
+        payload = bytes([0x00, 0x01, 0x02, 0x03, 0x80, 0x81])
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".bin")
+        tmp.write(payload)
+        tmp.close()
+        try:
+            args = [
+                "admin-passthru", self.device,
+                "--opcode=0x09",
+                f"--namespace-id={namespace}",
+                "--cdw10=0x8000001E",
+                "--cdw11=0x6000",
+                f"--cdw12=0x{'1' if enable else '0'}",
+                "--data-len=6",
+                "--write",
+                f"--input-file={tmp.name}",
+            ]
+            result = self.run_cmd(args, json_out=False)
+        finally:
+            _os.unlink(tmp.name)
+        return result
 
     # ── FDP Statistics log ────────────────────────────────────────────────────
 
@@ -545,10 +598,23 @@ class NVMeCliDriver(BaseNVMeDriver):
             args.append(f"--input-file={input_file}")
         return self.run_cmd(args, json_out=False)
 
-    def set_feature_passthru(self, feature_id: int, value: int = 0,
-                              endgrp: int = 0, namespace: int = 0,
+    def set_feature_passthru(self, feature_id: int, cdw11: int = 0,
+                              cdw12: int = 0, namespace: int = 0,
                               save: bool = False) -> dict:
         """Set Features via admin-passthru (opcode 0x09).
+
+        Exposes raw CDW11/CDW12 so callers control the exact layout for
+        each Feature ID — no hidden field mapping.
+
+          feature_id : Feature Identifier (FID), placed in CDW10 bits [7:0]
+          cdw11      : Command Dword 11 — meaning is FID-specific
+          cdw12      : Command Dword 12 — meaning is FID-specific
+          namespace  : Namespace ID (0 = controller-level feature)
+          save       : Set the SV (Save) bit in CDW10 bit 31
+
+        FID 0x1D (FDP enable/disable):
+          cdw11 = Endurance Group Identifier
+          cdw12 = Feature value (bit 0: 1=enable, 0=disable)
         """
         cdw10 = (feature_id & 0xFF) | (0x80000000 if save else 0)
         args = [
@@ -556,10 +622,53 @@ class NVMeCliDriver(BaseNVMeDriver):
             "--opcode=0x09",
             f"--cdw10={cdw10}",
         ]
-        if value:
-            args.append(f"--cdw11={value}")
-        if endgrp:
-            args.append(f"--cdw12={endgrp}")
+        if cdw11:
+            args.append(f"--cdw11={cdw11}")
+        if cdw12:
+            args.append(f"--cdw12={cdw12}")
         if namespace:
             args.append(f"--namespace-id={namespace}")
         return self.run_cmd(args, json_out=False)
+
+    def set_fdp_event_passthru(self, event_type: int, enable: bool,
+                                endgrp: int = 1, namespace: int = 1) -> dict:
+        """
+        Set Features FID 0x1E (FDP Events) via admin-passthru.
+
+        Correct CDW layout per NVMe FDP spec:
+          CDW10 = 0x8000001E  (FID=0x1E with Save bit set)
+          CDW11 = 0x00010000 | event_type  (bit 16 set, event type in bits [7:0])
+          CDW12 = endgrp when enabling, 0 when disabling
+          + --namespace-id, --data-len=1, --write, 1-byte zero payload
+
+          event_type : FDP event type code (0x00 = Invalid PID)
+          enable     : True to enable logging, False to disable
+          endgrp     : Endurance Group Identifier (CDW12 when enabling)
+          namespace  : Namespace ID
+        """
+        import tempfile, os as _os
+        cdw10 = 0x8000001E                          # FID=0x1E | Save bit
+        cdw11 = 0x00010000 | (event_type & 0xFF)    # bit 16 + event type
+        cdw12 = endgrp if enable else 0
+
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".bin")
+        tmp.write(b'\x00')
+        tmp.close()
+
+        try:
+            args = [
+                "admin-passthru", self.device,
+                "--opcode=0x09",
+                f"--namespace-id={namespace}",
+                f"--cdw10={cdw10}",
+                f"--cdw11={cdw11}",
+                f"--cdw12={cdw12}",
+                "--data-len=1",
+                "--write",
+                f"--input-file={tmp.name}",
+            ]
+            result = self.run_cmd(args, json_out=False)
+        finally:
+            _os.unlink(tmp.name)
+
+        return result

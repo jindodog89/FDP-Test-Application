@@ -14,11 +14,14 @@ class TestAdminValidateEventOrdering(BaseTest):
     def run(self, driver, log) -> TestResult:
         endgrp = getattr(self, "params", {}).get("endgrp", 1)
         nsid = getattr(self, "params", {}).get("namespace", 1)
-        
+
+        # Enable all FDP event types — disabled by default on some devices after boot
+        driver.enable_all_fdp_events(endgrp=endgrp, namespace=nsid)
+
         # Enable Invalid PID Event
-        enable_val = (1 << 8) | 0x00
-        #en_res = driver.set_feature(feature_id=0x1E, value=enable_val, cdw12=endgrp)
-        en_res = driver.set_feature_passthru(feature_id=0x1E, value=enable_val, endgrp=endgrp)
+        # CDW layout: CDW10=0x8000001E, CDW11=0x00010000|event_type, CDW12=endgrp (enable)
+        en_res = driver.set_fdp_event_passthru(event_type=0x00, enable=True,
+                                               endgrp=endgrp, namespace=nsid)
         if en_res["rc"] != 0:
             log(f"  ⚠ FID 1Eh not supported or timed out: {en_res['stderr'].strip()}")
             return TestResult(TestStatus.SKIP,

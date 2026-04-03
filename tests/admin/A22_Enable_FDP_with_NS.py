@@ -35,16 +35,24 @@ class TestAdminEnableFDPWithNS(BaseTest):
         )
         '''
         enable_result = driver.set_feature_passthru(
-            feature_id=0x1D, 
-            value=0x1, 
-            endgrp=endgrp
+            feature_id=0x1D,
+            cdw11=endgrp,
+            cdw12=0x1,
+            save=True,
         )
 
         if enable_result["rc"] != 0:
             err_out = enable_result["stderr"].lower()
-            # NVMe spec says Command Sequence Error (0x0C) is correct, but some
-            # controllers return Invalid Field in Command (0x02) instead for any
-            # Set Features rejection. Either way, rejection is the correct behaviour.
+            # "Invalid Field in Command" (0x02) means the controller rejects Set
+            # Features FID 0x1D entirely — not specifically because namespaces exist.
+            # This is a device limitation, not a correct sequence-error rejection.
+            if "invalid field" in err_out:
+                log(f"⚠ Set Features FID 1Dh rejected with 'Invalid Field' — device does not support")
+                log( "  this command at all, regardless of namespace state. Cannot verify sequence error.")
+                return TestResult(TestStatus.SKIP,
+                    "Device rejects Set Features FID 1Dh with 'Invalid Field' — "
+                    "cannot confirm namespace-based rejection specifically.")
+            # Any other rejection (e.g. Command Sequence Error 0x0C) is the correct behaviour
             log(f"✓ Command was rejected (rc={enable_result['rc']}): {err_out.strip()}")
             return TestResult(TestStatus.PASS,
                 "Controller correctly rejected FDP enable with existing namespaces.")

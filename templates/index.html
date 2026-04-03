@@ -492,32 +492,60 @@ header {
 .res-card.total .num { color: var(--text); }
 
 /* ── Device Control bar ─────────────────────────────────────────────────── */
-.device-control {
-  background: var(--surface);
-  border-top: 1px solid var(--border);
-  padding: 8px 16px;
+/* ── View tabs ───────────────────────────────────────────────────────────── */
+.view-tabs {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  background: var(--surface);
+  border-bottom: 2px solid var(--border);
   flex-shrink: 0;
-  flex-wrap: wrap;
+  padding: 0 20px;
+  gap: 2px;
 }
-.device-control-label {
-  font-size: 10px; font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.8px;
-  color: var(--muted); margin-right: 4px; white-space: nowrap;
+.view-tab {
+  padding: 10px 20px;
+  font-size: 13px; font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.15s, border-color 0.15s;
+  user-select: none; white-space: nowrap;
 }
-.btn-control {
-  padding: 5px 12px; border-radius: 6px;
-  border: 1px solid var(--border); font-size: 12px; font-weight: 600;
-  cursor: pointer; transition: all 0.15s;
-  background: var(--surface2); color: var(--text); white-space: nowrap;
+.view-tab:hover { color: var(--text); }
+.view-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ── Device Control view ─────────────────────────────────────────────────── */
+#view-device {
+  display: none;
+  flex: 1; overflow-y: auto;
+  padding: 28px 32px;
+  flex-direction: column; gap: 28px;
 }
-.btn-control:hover        { border-color: var(--accent); color: var(--accent); }
-.btn-control.danger:hover { border-color: var(--red);    color: var(--red); }
-.btn-control.create:hover { border-color: var(--green);  color: var(--green); }
-.btn-control.info:hover   { border-color: var(--accent); color: var(--accent); }
-.btn-control:disabled     { opacity: 0.4; cursor: not-allowed; }
+#view-device.active { display: flex; }
+.dc-section-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.8px; color: var(--muted);
+  margin-bottom: 12px; padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.dc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+.dc-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 7px;
+  cursor: pointer; transition: border-color 0.15s, background 0.15s;
+}
+.dc-card:hover        { border-color: var(--accent); background: var(--surface2); }
+.dc-card.danger:hover { border-color: var(--red);    background: var(--surface2); }
+.dc-card.create:hover { border-color: var(--green);  background: var(--surface2); }
+.dc-card-icon  { font-size: 24px; }
+.dc-card-title { font-size: 13px; font-weight: 600; }
+.dc-card-desc  { font-size: 11px; color: var(--muted); line-height: 1.5; }
+
 
 /* ── Modals ─────────────────────────────────────────────────────────────── */
 .modal-overlay {
@@ -662,6 +690,15 @@ select.field-input { cursor: pointer; }
   </div>
 </header>
 
+<!-- ═══ View Tabs ════════════════════════════════════════════════════════ -->
+<div class="view-tabs">
+  <div class="view-tab active" id="vtab-test"   onclick="switchView('test')">⚗ Test Execution</div>
+  <div class="view-tab"        id="vtab-device" onclick="switchView('device')">🖥 Device Control</div>
+</div>
+
+<!-- ═══ View: Test Execution ═════════════════════════════════════════════ -->
+<div id="view-test" style="display:flex;flex:1;overflow:hidden;min-height:0">
+
 <!-- ═══ Three-pane layout ═════════════════════════════════════════════════ -->
 <div class="main" id="main-layout">
 
@@ -769,14 +806,261 @@ select.field-input { cursor: pointer; }
   </div>
 
 </div><!-- /.main -->
+</div><!-- /#view-test -->
 
-<!-- ═══ Device Control bar ═══════════════════════════════════════════════ -->
-<div class="device-control">
-  <span class="device-control-label">Device Control</span>
-  <button class="btn-control info" onclick="ctrlExtractFDPConfig()" id="ctrl-extract-fdp">🔬 Extract DUT FDP Config</button>
-  <button class="btn-control" onclick="ctrlListNS()" id="ctrl-list-ns">📋 List Namespaces</button>
-  <button class="btn-control danger" onclick="ctrlDeleteAllNS()" id="ctrl-del-ns">🗑 Delete All Namespaces</button>
-  <button class="btn-control create" onclick="openCreateNSModal()" id="ctrl-create-ns">＋ Create Namespace</button>
+<!-- ═══ View: Device Control ═════════════════════════════════════════════ -->
+<div id="view-device">
+
+  <div>
+    <div class="dc-section-title">FDP Configuration</div>
+    <div class="dc-grid">
+      <div class="dc-card" onclick="ctrlExtractFDPConfig()">
+        <div class="dc-card-icon">🔬</div>
+        <div class="dc-card-title">Extract DUT FDP Config</div>
+        <div class="dc-card-desc">Snapshot FDP enable state, RUHS, configs, stats, and event log from the selected device.</div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="dc-section-title">Namespace Management</div>
+    <div class="dc-grid">
+      <div class="dc-card" onclick="ctrlListNS()">
+        <div class="dc-card-icon">📋</div>
+        <div class="dc-card-title">List Namespaces</div>
+        <div class="dc-card-desc">Enumerate all namespaces on the device with size and FDP status.</div>
+      </div>
+      <div class="dc-card create" onclick="openCreateNSModal()">
+        <div class="dc-card-icon">＋</div>
+        <div class="dc-card-title">Create Namespace</div>
+        <div class="dc-card-desc">Create a new namespace with configurable size, format, and FDP placement handles.</div>
+      </div>
+      <div class="dc-card danger" onclick="openDeleteNSModal()">
+        <div class="dc-card-icon">🗑</div>
+        <div class="dc-card-title">Delete Namespaces</div>
+        <div class="dc-card-desc">Detach and permanently delete selected or all namespaces on the device.</div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="dc-section-title">Write Operations</div>
+    <div class="dc-grid">
+      <div class="dc-card" onclick="openTargetedWriteModal()">
+        <div class="dc-card-icon">✍</div>
+        <div class="dc-card-title">Targeted FDP Write</div>
+        <div class="dc-card-desc">Send multiple FDP-directed writes to a selected Reclaim Unit Handle from a random start LBA.</div>
+      </div>
+      <div class="dc-card" onclick="openFIOModal()">
+        <div class="dc-card-icon">⚡</div>
+        <div class="dc-card-title">Run FIO</div>
+        <div class="dc-card-desc">Build and run a custom FIO job with auto-filled defaults. Supports FDP-directed workloads via io_uring_cmd.</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /#view-device -->
+
+<!-- ═══ Delete Namespaces Modal ══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="delete-ns-modal">
+  <div class="modal" style="width:480px">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">🗑 Delete Namespaces</div>
+        <div class="modal-subtitle" id="del-ns-subtitle">Select namespaces to delete</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('delete-ns-modal')">×</button>
+    </div>
+    <div class="modal-body" style="gap:12px">
+      <div style="display:flex;gap:20px;align-items:center;font-size:13px">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="radio" name="del-ns-scope" id="del-scope-selected" value="selected" checked>
+          Delete selected
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="radio" name="del-ns-scope" id="del-scope-all" value="all">
+          Delete all
+        </label>
+      </div>
+      <div id="del-ns-list" style="
+        border:1px solid var(--border);border-radius:6px;
+        background:var(--surface2);padding:10px 12px;
+        min-height:60px;max-height:200px;overflow-y:auto;
+        display:flex;flex-direction:column;gap:6px;
+        font-size:12px;font-family:monospace">
+        <span style="color:var(--muted)">Loading namespaces…</span>
+      </div>
+      <div style="font-size:11px;color:var(--red);line-height:1.5;
+                  padding:8px 10px;background:rgba(239,68,68,0.08);
+                  border:1px solid rgba(239,68,68,0.3);border-radius:6px">
+        ⚠ Deletion is permanent. All data in the selected namespace(s) will be lost.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <span id="del-ns-status" style="margin-right:auto;font-size:11px;color:var(--muted)"></span>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('delete-ns-modal')">Cancel</button>
+      <button class="btn btn-danger btn-sm" id="del-ns-btn" onclick="submitDeleteNS()">🗑 Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ FIO Modal ════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="fio-modal">
+  <div class="modal" style="width:780px;max-width:95vw">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">⚡ Run FIO Workload</div>
+        <div class="modal-subtitle">Configure a FIO job and run it against the selected device</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('fio-modal')">×</button>
+    </div>
+    <div class="modal-body" style="flex-direction:row;gap:16px;padding:16px 20px">
+
+      <!-- Left: fields -->
+      <div style="flex:1;display:flex;flex-direction:column;gap:10px;min-width:0">
+
+        <!-- IO Engine + RW Mode -->
+        <div class="field-row">
+          <div class="field-group">
+            <label class="field-label" title="The IO engine fio uses to submit IO requests.&#10;io_uring_cmd: NVMe passthrough via uring (required for FDP).&#10;libaio: Linux async IO (block device, no FDP).&#10;sync: synchronous IO.">
+              IO Engine ⓘ
+            </label>
+            <select class="field-input" id="fio-ioengine" onchange="fioUpdatePreview()">
+              <option value="io_uring_cmd" selected>io_uring_cmd</option>
+              <option value="libaio">libaio</option>
+              <option value="sync">sync</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label" title="Read/write pattern.&#10;write: sequential writes.&#10;randwrite: random writes.&#10;read: sequential reads.&#10;randread: random reads.&#10;randrw: mixed random R/W.">
+              RW Mode ⓘ
+            </label>
+            <select class="field-input" id="fio-rw" onchange="fioUpdatePreview()">
+              <option value="write" selected>write</option>
+              <option value="randwrite">randwrite</option>
+              <option value="read">read</option>
+              <option value="randread">randread</option>
+              <option value="randrw">randrw</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Direct IO -->
+        <div class="field-row">
+          <div class="field-group">
+            <label class="field-label" title="Controls O_DIRECT — bypasses the OS page cache.&#10;1 (recommended): IO goes directly to the device, no kernel buffering. Required for accurate NVMe benchmarking.&#10;0: IO passes through the page cache (filesystem testing only).">
+              Direct IO ⓘ
+            </label>
+            <select class="field-input" id="fio-direct" onchange="fioUpdatePreview()">
+              <option value="1" selected>1 — bypass page cache (recommended)</option>
+              <option value="0">0 — use page cache</option>
+            </select>
+          </div>
+          <div class="field-group"><!-- spacer --></div>
+        </div>
+
+        <!-- Block Size + IO Depth -->
+        <div class="field-row">
+          <div class="field-group">
+            <label class="field-label" title="Size of each individual IO request.&#10;Examples: 4k, 8k, 64k, 1m.&#10;Smaller sizes stress the controller queue; larger sizes test sequential throughput.">
+              Block Size ⓘ
+            </label>
+            <input class="field-input" id="fio-bs" type="text" value="4k"
+                   oninput="fioUpdatePreview()"
+                   title="IO block size — e.g. 4k, 8k, 64k, 1m">
+          </div>
+          <div class="field-group">
+            <label class="field-label" title="Number of IO requests kept in flight at once (queue depth).&#10;Higher values increase throughput on devices that benefit from parallelism.&#10;Typical range: 1 (latency testing) to 256 (throughput testing).">
+              IO Depth ⓘ
+            </label>
+            <input class="field-input" id="fio-iodepth" type="number" value="16" min="1"
+                   oninput="fioUpdatePreview()">
+          </div>
+        </div>
+
+        <!-- Num Jobs + Runtime -->
+        <div class="field-row">
+          <div class="field-group">
+            <label class="field-label" title="Number of independent fio worker threads/processes.&#10;Each job gets its own file offset range.&#10;Multiply iodepth × numjobs for total outstanding IOs.">
+              Num Jobs ⓘ
+            </label>
+            <input class="field-input" id="fio-numjobs" type="number" value="1" min="1"
+                   oninput="fioUpdatePreview()">
+          </div>
+          <div class="field-group">
+            <label class="field-label" title="How long to run the workload, in seconds.&#10;Used together with time_based=1 so fio runs for exactly this duration regardless of file size.">
+              Runtime (s) ⓘ
+            </label>
+            <input class="field-input" id="fio-runtime" type="number" value="30" min="1"
+                   oninput="fioUpdatePreview()">
+          </div>
+        </div>
+
+        <!-- FDP toggle + PLI -->
+        <div class="field-row">
+          <div class="field-group">
+            <label class="field-label" title="Enable FDP (Flexible Data Placement) directives.&#10;Requires io_uring_cmd engine and a generic char device (/dev/ngXnY).&#10;When enabled, writes are routed to specific Reclaim Unit Handles.">
+              FDP Enabled ⓘ
+            </label>
+            <select class="field-input" id="fio-fdp" onchange="fioUpdatePreview()">
+              <option value="1" selected>Yes</option>
+              <option value="0">No</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label" title="Placement List Index — which entry in the namespace Placement Identifier list to use.&#10;0 = first placement handle. Must be a valid index for this namespace.">
+              FDP PLI ⓘ
+            </label>
+            <input class="field-input" id="fio-fdp-pli" type="number" value="0" min="0"
+                   oninput="fioUpdatePreview()">
+          </div>
+        </div>
+
+        <!-- PLI Select + Filename -->
+        <div class="field-row">
+          <div class="field-group">
+            <label class="field-label" title="How fio cycles through multiple Placement List Indices when fdp_pli specifies more than one.&#10;roundrobin: cycle through each PLI in order.&#10;random: pick a random PLI for each IO.">
+              PLI Select ⓘ
+            </label>
+            <select class="field-input" id="fio-fdp-pli-select" onchange="fioUpdatePreview()">
+              <option value="roundrobin" selected>roundrobin</option>
+              <option value="random">random</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label" title="The device file fio will issue IOs to.&#10;io_uring_cmd requires a generic char device: /dev/ngXnY.&#10;libaio/sync use the block namespace device: /dev/nvmeXnY.">
+              Filename ⓘ
+            </label>
+            <input class="field-input" id="fio-filename" type="text"
+                   oninput="fioUpdatePreview()"
+                   placeholder="/dev/ng0n1">
+          </div>
+        </div>
+
+      </div><!-- /fields -->
+
+      <!-- Right: live job preview -->
+      <div style="width:240px;flex-shrink:0;display:flex;flex-direction:column;gap:6px">
+        <div class="field-label" style="margin-bottom:2px">Job File Preview</div>
+        <pre id="fio-preview" style="
+          flex:1; margin:0; font-family:'Cascadia Code','Fira Code',monospace;
+          font-size:10.5px; line-height:1.65;
+          background:#0a0c12; color:#c8d3e0;
+          border:1px solid var(--border); border-radius:6px;
+          padding:10px 12px; overflow-y:auto; min-height:220px;
+          white-space:pre; tab-size:2;
+        "></pre>
+        <div id="fio-run-status" style="font-size:11px;color:var(--muted);min-height:16px"></div>
+      </div>
+
+    </div><!-- /modal-body -->
+
+    <div class="modal-footer">
+      <span id="fio-result-summary" style="margin-right:auto;font-size:11px;color:var(--muted)"></span>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('fio-modal')">Close</button>
+      <button class="btn btn-primary btn-sm" id="fio-run-btn" onclick="runFIO()">▶ Run FIO</button>
+    </div>
+  </div>
 </div>
 
 <!-- ═══ FDP Config Modal ═══════════════════════════════════════════════════ -->
@@ -832,12 +1116,12 @@ select.field-input { cursor: pointer; }
       <div class="section-divider">Basic Parameters</div>
       <div class="field-row">
         <div class="field-group">
-          <label class="field-label">Namespace Size (sectors)</label>
+          <label class="field-label">Namespace Size (LBAs)</label>
           <input class="field-input" id="ns-size" type="number" min="1" value="10485760">
           <span class="field-hint">Total size in logical blocks</span>
         </div>
         <div class="field-group">
-          <label class="field-label">Namespace Capacity (sectors)</label>
+          <label class="field-label">Namespace Capacity (LBAs)</label>
           <input class="field-input" id="ns-cap" type="number" min="1" value="10485760">
           <span class="field-hint">Usable capacity (≤ size)</span>
         </div>
@@ -853,13 +1137,10 @@ select.field-input { cursor: pointer; }
           </select>
         </div>
         <div class="field-group">
-          <label class="field-label">Data Protection (DPS)</label>
-          <select class="field-input" id="ns-dps">
-            <option value="0" selected>0 — None</option>
-            <option value="1">1 — Type 1</option>
-            <option value="2">2 — Type 2</option>
-            <option value="3">3 — Type 3</option>
-          </select>
+          <label class="field-label">Placement Handle List (--phndls)</label>
+          <input class="field-input" id="ns-phndls" type="text" value="0,1,2,3,4,5,6,7"
+                 placeholder="e.g. 0,1,2,3">
+          <span class="field-hint">Comma-separated RUH indices to assign</span>
         </div>
       </div>
       <div class="section-divider" style="margin-top:4px">FDP Parameters</div>
@@ -895,6 +1176,49 @@ select.field-input { cursor: pointer; }
 </div>
 
 <!-- ═══════════════════════════ SCRIPT ════════════════════════════════════ -->
+<!-- ═══ Targeted Write Modal ═══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="targeted-write-modal">
+  <div class="modal" style="width:480px">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">✍ Targeted FDP Write</div>
+        <div class="modal-subtitle">Write consecutive 4 KB blocks to a selected Reclaim Unit Handle</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('targeted-write-modal')">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="param-field">
+          <label>Reclaim Unit Handle (RUH)</label>
+          <input type="number" id="tw-ruh" value="0" min="0" max="65535">
+        </div>
+        <div class="param-field">
+          <label>Number of Writes</label>
+          <input type="number" id="tw-num-writes" value="10" min="1" max="1000">
+        </div>
+        <div class="param-field" style="grid-column:1/-1">
+          <label>Data Source File (optional)</label>
+          <input type="text" id="tw-data-file" value="/dev/zero" placeholder="/dev/zero">
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.6;padding:8px 10px;
+                  background:var(--surface2);border-radius:6px;border:1px solid var(--border)">
+        Start LBA is chosen randomly (0 – 1,000,000) each run.<br>
+        Writes proceed consecutively: LBA, LBA+1, LBA+2, …
+      </div>
+      <div id="tw-result" style="display:none;font-size:11px;line-height:1.7;
+           padding:10px 12px;background:var(--surface2);border-radius:6px;
+           border:1px solid var(--border);max-height:160px;overflow-y:auto;
+           font-family:monospace;white-space:pre-wrap"></div>
+    </div>
+    <div class="modal-footer">
+      <span id="tw-status" style="margin-right:auto;font-size:11px;color:var(--muted)"></span>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('targeted-write-modal')">Close</button>
+      <button class="btn btn-primary btn-sm" id="tw-run-btn" onclick="runTargetedWrite()">▶ Run</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const socket = io();
 
@@ -1523,7 +1847,179 @@ function setupResizeHandle(handleId, panelId, side, minW, maxW) {
 // ═══════════════════════════════════════════════════════════════════════════
 function getSelectedDevice() { return document.getElementById('device-select').value; }
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
+
+function openFIOModal() {
+  const device = getSelectedDevice();
+  if (!device) return alert('Select a device first.');
+
+  // Derive ng device path from block device path: /dev/nvme0n1 -> /dev/ng0n1
+  const ngMatch = device.match(/nvme(\d+)n(\d+)/);
+  const ngDev   = ngMatch ? `/dev/ng${ngMatch[1]}n${ngMatch[2]}` : device;
+
+  document.getElementById('fio-filename').value     = ngDev;
+  document.getElementById('fio-result-summary').textContent = '';
+  document.getElementById('fio-run-status').textContent     = '';
+  document.getElementById('fio-run-btn').disabled           = false;
+  document.getElementById('fio-run-btn').textContent        = '▶ Run FIO';
+  fioUpdatePreview();
+  openModal('fio-modal');
+}
+
+function fioUpdatePreview() {
+  const get = id => document.getElementById(id)?.value ?? '';
+  const ioengine  = get('fio-ioengine');
+  const rw        = get('fio-rw');
+  const bs        = get('fio-bs')        || '4k';
+  const iodepth   = get('fio-iodepth')   || '16';
+  const numjobs   = get('fio-numjobs')   || '1';
+  const runtime   = get('fio-runtime')   || '30';
+  const fdp       = get('fio-fdp');
+  const pli       = get('fio-fdp-pli')   || '0';
+  const pliSel    = get('fio-fdp-pli-select');
+  const filename  = get('fio-filename')  || '/dev/ng0n1';
+
+  let lines = [
+    '[global]',
+    `ioengine=${ioengine}`,
+    `direct=${get('fio-direct') || '1'}`,
+    `rw=${rw}`,
+    `bs=${bs}`,
+    `iodepth=${iodepth}`,
+    `numjobs=${numjobs}`,
+    `runtime=${runtime}`,
+    'time_based=1',
+  ];
+  if (fdp === '1') {
+    lines.push('fdp=1', `fdp_pli=${pli}`, `fdp_pli_select=${pliSel}`);
+  }
+  lines.push('', '[job]', `filename=${filename}`, '');
+
+  document.getElementById('fio-preview').textContent = lines.join('\n');
+}
+
+async function runFIO() {
+  const device = getSelectedDevice();
+  if (!device) return;
+
+  const get = id => document.getElementById(id)?.value ?? '';
+  const btn    = document.getElementById('fio-run-btn');
+  const status = document.getElementById('fio-run-status');
+  const sumEl  = document.getElementById('fio-result-summary');
+
+  const payload = {
+    device,
+    ioengine:        get('fio-ioengine'),
+    rw:              get('fio-rw'),
+    direct:          parseInt(get('fio-direct') || '1'),
+    bs:              get('fio-bs')      || '4k',
+    iodepth:         parseInt(get('fio-iodepth'))  || 16,
+    numjobs:         parseInt(get('fio-numjobs'))  || 1,
+    runtime:         parseInt(get('fio-runtime'))  || 30,
+    fdp:             get('fio-fdp') === '1',
+    fdp_pli:         parseInt(get('fio-fdp-pli'))  || 0,
+    fdp_pli_select:  get('fio-fdp-pli-select'),
+    filename:        get('fio-filename') || device,
+  };
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Running…';
+  status.textContent = `Running ${payload.runtime}s workload…`;
+  sumEl.textContent  = '';
+
+  try {
+    const r = await fetch('/api/ctrl/run-fio', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    }).then(x => x.json());
+
+    if (r.error) {
+      status.textContent = '';
+      sumEl.textContent  = '✗ ' + r.error;
+      sumEl.style.color  = 'var(--red)';
+    } else {
+      status.textContent = '';
+      const parts = [];
+      if (r.bw_mbs   != null) parts.push(`${r.bw_mbs} MB/s`);
+      if (r.iops     != null) parts.push(`${r.iops} IOPS`);
+      if (r.lat_us   != null) parts.push(`lat ${r.lat_us} µs`);
+      if (r.io_mb    != null) parts.push(`wrote ${r.io_mb} MB`);
+      sumEl.textContent = parts.length ? '✓ ' + parts.join('  ·  ') : '✓ Completed';
+      sumEl.style.color = 'var(--green)';
+    }
+  } catch (e) {
+    status.textContent = '';
+    sumEl.textContent  = '✗ Request failed: ' + e.message;
+    sumEl.style.color  = 'var(--red)';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '▶ Run FIO';
+  }
+}
+
+function openTargetedWriteModal() {
+  const device = getSelectedDevice();
+  if (!device) return alert('Select a device first.');
+  document.getElementById('tw-result').style.display = 'none';
+  document.getElementById('tw-result').textContent = '';
+  document.getElementById('tw-status').textContent = '';
+  openModal('targeted-write-modal');
+}
+
+async function runTargetedWrite() {
+  const device = getSelectedDevice();
+  if (!device) return;
+  const ruh       = parseInt(document.getElementById('tw-ruh').value)       || 0;
+  const numWrites = parseInt(document.getElementById('tw-num-writes').value) || 10;
+  const dataFile  = document.getElementById('tw-data-file').value.trim() || '/dev/zero';
+  const btn       = document.getElementById('tw-run-btn');
+  const status    = document.getElementById('tw-status');
+  const resultBox = document.getElementById('tw-result');
+
+  btn.disabled = true; btn.textContent = '⏳ Running…';
+  status.textContent = 'Sending writes…';
+  resultBox.style.display = 'none';
+
+  try {
+    const r = await fetch('/api/ctrl/targeted-write', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ device, ruh, num_writes: numWrites, data_file: dataFile })
+    }).then(x => x.json());
+
+    if (r.error) {
+      status.textContent = 'Error: ' + r.error;
+      status.style.color = 'var(--red)';
+    } else {
+      const ok  = r.completed - r.errors;
+      const col = r.errors === 0 ? 'var(--green)' : r.errors < r.completed ? 'var(--yellow)' : 'var(--red)';
+      status.textContent = `${ok}/${r.completed} writes succeeded  |  start LBA: ${r.start_lba}  |  RUH: ${r.ruh}`;
+      status.style.color = col;
+      const lines = r.results.map(w =>
+        `${w.success ? '✓' : '✗'} Write ${String(w.write).padStart(3)} — LBA ${String(w.lba).padStart(7)}${w.error ? '  ERR: ' + w.error : ''}`
+      ).join('\n');
+      resultBox.textContent = lines;
+      resultBox.style.display = 'block';
+    }
+  } catch (e) {
+    status.textContent = 'Request failed: ' + e.message;
+    status.style.color = 'var(--red)';
+  } finally {
+    btn.disabled = false; btn.textContent = '▶ Run';
+  }
+}
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function switchView(view) {
+  const isTest = view === 'test';
+  document.getElementById('view-test').style.display   = isTest ? 'flex' : 'none';
+  document.getElementById('view-device').classList.toggle('active', !isTest);
+  document.getElementById('vtab-test').classList.toggle('active',    isTest);
+  document.getElementById('vtab-device').classList.toggle('active', !isTest);
+  // Run/Stop buttons only make sense on the test view
+  document.getElementById('run-btn').style.display  = isTest ? '' : 'none';
+  document.getElementById('stop-btn').style.display = 'none';
+}
 
 document.querySelectorAll('.modal-overlay').forEach(ov =>
   ov.addEventListener('click', e => { if (e.target === ov) ov.classList.remove('open'); })
@@ -1543,7 +2039,7 @@ async function ctrlExtractFDPConfig() {
   const device = getSelectedDevice();
   if (!device) return alert('Select a device first.');
   const btn = document.getElementById('ctrl-extract-fdp');
-  btn.disabled = true; btn.textContent = '⏳ Extracting…';
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Extracting…'; }
 
   try {
     const r = await fetch('/api/ctrl/extract-fdp-config', {
@@ -1671,8 +2167,11 @@ async function ctrlExtractFDPConfig() {
     body.appendChild(grid);
     openModal('fdp-config-modal');
 
+  } catch (e) {
+    console.error('ctrlExtractFDPConfig error:', e);
+    alert('Extract FDP Config failed: ' + e.message);
   } finally {
-    btn.disabled = false; btn.textContent = '🔬 Extract DUT FDP Config';
+    if (btn) { btn.disabled = false; btn.textContent = '🔬 Extract DUT FDP Config'; }
   }
 }
 
@@ -1698,7 +2197,7 @@ async function ctrlListNS() {
   const device = getSelectedDevice();
   if (!device) return alert('Select a device first.');
   const btn = document.getElementById('ctrl-list-ns');
-  btn.disabled = true; btn.textContent = '⏳ Listing…';
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Listing…'; }
   try {
     const r = await fetch('/api/ctrl/list-ns', {
       method:'POST', headers:{'Content-Type':'application/json'},
@@ -1718,30 +2217,93 @@ async function ctrlListNS() {
     } else { lines.push({text:'No namespaces found.',cls:'mut'}); }
     if (r.raw) lines.push({text:r.raw,cls:'mut'});
     showNSResult('Namespace List', device, lines);
-  } finally { btn.disabled=false; btn.textContent='📋 List Namespaces'; }
+  } catch (e) {
+    console.error('ctrlListNS error:', e);
+    alert('List Namespaces failed: ' + e.message);
+  } finally { if (btn) { btn.disabled=false; btn.textContent='📋 List Namespaces'; } }
 }
 
-async function ctrlDeleteAllNS() {
+async function openDeleteNSModal() {
   const device = getSelectedDevice();
   if (!device) return alert('Select a device first.');
-  if (!confirm(`⚠ WARNING\n\nThis will delete ALL namespaces on:\n${device}\n\nAll data will be permanently lost. Continue?`)) return;
-  const btn = document.getElementById('ctrl-del-ns');
-  btn.disabled=true; btn.textContent='⏳ Deleting…';
+  document.getElementById('del-ns-status').textContent = '';
+  document.getElementById('del-ns-btn').disabled = false;
+  document.getElementById('del-ns-btn').textContent = '\u{1F5D1} Delete';
+  document.getElementById('del-scope-selected').checked = true;
+  const listBox = document.getElementById('del-ns-list');
+  listBox.innerHTML = '<span style="color:var(--muted)">Loading\u2026</span>';
+  document.getElementById('del-ns-subtitle').textContent = device;
+  openModal('delete-ns-modal');
   try {
-    const r = await fetch('/api/ctrl/delete-all-ns', {
+    const r = await fetch('/api/ctrl/list-ns', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({device})
     }).then(x => x.json());
+    listBox.innerHTML = '';
+    const nsList = r.namespaces || [];
+    if (!nsList.length) {
+      listBox.innerHTML = '<span style="color:var(--muted)">No namespaces found.</span>';
+      document.getElementById('del-ns-btn').disabled = true;
+      return;
+    }
+    nsList.forEach(ns => {
+      const row = document.createElement('label');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 0';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.value = ns.nsid; cb.className = 'del-ns-cb';
+      const parts = [`NSID ${ns.nsid}`];
+      if (ns.size_gb)  parts.push(`${ns.size_gb} GB`);
+      if (ns.lba_size) parts.push(`${ns.lba_size}B LBA`);
+      if (ns.fdp)      parts.push('FDP');
+      row.appendChild(cb);
+      row.appendChild(document.createTextNode('  ' + parts.join('  \u00b7  ')));
+      listBox.appendChild(row);
+    });
+  } catch(e) {
+    listBox.innerHTML = `<span style="color:var(--red)">Failed to load: ${e.message}</span>`;
+  }
+}
+
+async function submitDeleteNS() {
+  const device = getSelectedDevice();
+  if (!device) return;
+  const scope  = document.querySelector('input[name="del-ns-scope"]:checked')?.value;
+  const btn    = document.getElementById('del-ns-btn');
+  const status = document.getElementById('del-ns-status');
+  let nsids = [];
+  if (scope === 'all') {
+    document.querySelectorAll('.del-ns-cb').forEach(cb => nsids.push(parseInt(cb.value)));
+  } else {
+    document.querySelectorAll('.del-ns-cb:checked').forEach(cb => nsids.push(parseInt(cb.value)));
+  }
+  if (!nsids.length) { status.textContent = 'No namespaces selected.'; return; }
+  const msg = scope === 'all'
+    ? `\u26a0 WARNING\n\nDelete ALL ${nsids.length} namespace(s) on:\n${device}\n\nAll data will be permanently lost. Continue?`
+    : `\u26a0 WARNING\n\nDelete NSID(s) [${nsids.join(', ')}] on:\n${device}\n\nAll data will be permanently lost. Continue?`;
+  if (!confirm(msg)) return;
+  btn.disabled = true; btn.textContent = '\u23f3 Deleting\u2026';
+  status.textContent = '';
+  try {
+    const r = await fetch('/api/ctrl/delete-ns', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({device, nsids})
+    }).then(x => x.json());
+    closeModal('delete-ns-modal');
     const lines = [{text:`Device: ${device}`,cls:'hd'},{text:''}];
-    if (r.error) { lines.push({text:'✘ '+r.error,cls:'err'}); }
+    if (r.error) { lines.push({text:'\u2718 '+r.error,cls:'err'}); }
     else {
       (r.results||[]).forEach(res =>
-        lines.push({text:`${res.success?'✔':'✘'} NSID ${res.nsid}: ${res.message}`,cls:res.success?'ok':'err'})
+        lines.push({text:`${res.success?'\u2714':'\u2718'} NSID ${res.nsid}: ${res.message}`,cls:res.success?'ok':'err'})
       );
-      if (r.deleted===0) lines.push({text:'No namespaces to delete.',cls:'mut'});
+      if ((r.deleted??0)===0) lines.push({text:'No namespaces deleted.',cls:'mut'});
     }
-    showNSResult('Delete All Namespaces', `${r.deleted??0} deleted`, lines);
-  } finally { btn.disabled=false; btn.textContent='🗑 Delete All Namespaces'; }
+    showNSResult('Delete Namespaces', `${r.deleted??0} deleted`, lines);
+  } catch(e) {
+    status.textContent = 'Request failed: ' + e.message;
+    status.style.color = 'var(--red)';
+  } finally {
+    btn.disabled = false; btn.textContent = '\u{1F5D1} Delete';
+  }
 }
 
 function openCreateNSModal() {
@@ -1750,7 +2312,7 @@ function openCreateNSModal() {
   openModal('create-ns-modal');
 }
 
-['ns-size','ns-cap','ns-flbas','ns-dps','ns-ruhs','ns-endg','ns-nmic'].forEach(id => {
+['ns-size','ns-cap','ns-flbas','ns-phndls','ns-ruhs','ns-endg','ns-nmic'].forEach(id => {
   document.getElementById(id)?.addEventListener('input', updateCmdPreview);
 });
 
@@ -1759,15 +2321,16 @@ function updateCmdPreview() {
   const size  = document.getElementById('ns-size').value  || '?';
   const cap   = document.getElementById('ns-cap').value   || '?';
   const flbas = document.getElementById('ns-flbas').value || '0';
-  const dps   = document.getElementById('ns-dps').value   || '0';
-  const ruhs  = document.getElementById('ns-ruhs').value  || '?';
-  const endg  = document.getElementById('ns-endg').value  || '0';
-  const nmic  = document.getElementById('ns-nmic').value  || '0';
+  const phndls = document.getElementById('ns-phndls').value || '0';
+  const ruhs   = document.getElementById('ns-ruhs').value   || '?';
+  const endg   = document.getElementById('ns-endg').value   || '0';
+  const nmic   = document.getElementById('ns-nmic').value   || '0';
   document.getElementById('cmd-preview').textContent =
     `# Step 1 — Create\nnvme create-ns ${dev} \\\n` +
     `  --nsze=${size} --ncap=${cap} \\\n` +
-    `  --flbas=${flbas} --dps=${dps} --nmic=${nmic} \\\n` +
-    `  --endg-id=${endg} --nphndls=${ruhs} --anagrp-id=1\n\n` +
+    `  --flbas=${flbas} --nmic=${nmic} \\\n` +
+    `  --endg-id=${endg} --nphndls=${ruhs} \\\n` +
+    `  --phndls=${phndls}\n\n` +
     `# Step 2 — Attach\nnvme attach-ns ${dev} \\\n` +
     `  --namespace-id=<new-nsid> --controllers=0x1`;
 }
@@ -1788,9 +2351,9 @@ async function submitCreateNS() {
     nsze:    parseInt(document.getElementById('ns-size').value),
     ncap:    parseInt(document.getElementById('ns-cap').value),
     flbas:   parseInt(document.getElementById('ns-flbas').value),
-    dps:     parseInt(document.getElementById('ns-dps').value),
     nmic:    parseInt(document.getElementById('ns-nmic').value),
     nphndls: parseInt(document.getElementById('ns-ruhs').value),
+    phndls:  document.getElementById('ns-phndls').value.trim(),
     endg_id: parseInt(document.getElementById('ns-endg').value),
   };
 

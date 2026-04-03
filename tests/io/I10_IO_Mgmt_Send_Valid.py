@@ -1,6 +1,6 @@
 """
 Test: io_management_send_valid
-Send an IO Management Send command (opcode 0x9D, cdw12 bits select RUHS update)
+Send an IO Management Send command (opcode 0x1D, cdw12 bits select RUHS update)
 to reassign a reclaim unit handle to a new reclaim unit, then verify the
 handle's RUHU (Reclaim Unit Handle Update) reflects the change via RUHS read.
 """
@@ -12,12 +12,12 @@ class TestIOMgmtSendValid(BaseTest):
     test_id = "io_management_send_valid"
     name = "I10. IO Mgmt Send Valid"
     description = (
-        "Sends an IO Management Send command (NVMe opcode 0x9D) to update a "
+        "Sends an IO Management Send command (NVMe opcode 0x1D) to update a "
         "valid reclaim unit handle, requesting a new reclaim unit assignment. "
         "Verifies the handle's state changes in the RUHS log afterward."
     )
     category = "IO"
-    tags = ["io-mgmt-send", "ruhs", "reclaim", "opcode-9D"]
+    tags = ["io-mgmt-send", "ruhs", "reclaim", "opcode-1D"]
 
     def run(self, driver, log) -> TestResult:
         # ── Step 1: Read current RUHS ─────────────────────────────────────────
@@ -41,10 +41,10 @@ class TestIOMgmtSendValid(BaseTest):
         log(f"  Selected handle: ruhid={ruhid}  (ruamw before: {ruamw_before})")
 
         # ── Step 2: Issue IO Management Send via io-passthru ─────────────────
-        # NVMe spec: IO Management Send opcode = 0x9D
-        # CDW10 bits [3:0] = Select field:  0x0 = Reclaim Unit Handle Update (RUHU)
+        # NVMe spec: IO Management Send opcode = 0x1D
+        # CDW10 = Management Operation field: 0x01 = Reclaim Unit Handle Update (RUHU)
         # Data flows host → device (--write flag)
-        log(f"\nStep 2: Issuing IO Management Send (opcode 0x9D) for handle ruhid={ruhid}...")
+        log(f"\nStep 2: Issuing IO Management Send (opcode 0x1D) for handle ruhid={ruhid}...")
 
         # Build a 4096-byte payload with the handle index in the first 2 bytes
         # (NVMe FDP spec: IO Management Send RUHU data structure)
@@ -63,9 +63,9 @@ class TestIOMgmtSendValid(BaseTest):
             result = driver.run_cmd([
                 "io-passthru",
                 driver.device,
-                "--opcode=0x9D",        # IO Management Send
+                "--opcode=0x1D",        # IO Management Send
                 "--namespace-id=1",
-                "--cdw10=0",            # Select=0 → RUHU
+                "--cdw10=1",            # Management Operation 01h = RUHU
                 "--data-len=4096",
                 "--write",              # data direction: host → device
                 f"--input-file={payload_path}",

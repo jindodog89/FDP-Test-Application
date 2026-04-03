@@ -381,6 +381,9 @@ class ResetTestBase:
         if subprocess.run(["which", "fio"], capture_output=True).returncode != 0:
             log("  fio not installed — run: sudo apt install fio")
             return False
+        # Ensure io_uring is enabled (disabled by default on some kernels after boot)
+        subprocess.run(["sysctl", "-w", "kernel.io_uring_disabled=0"],
+                       capture_output=True)
 
         dev = driver.device
         base = dev.split("/")[-1]

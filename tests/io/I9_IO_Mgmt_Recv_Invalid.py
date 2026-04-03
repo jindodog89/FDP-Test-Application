@@ -99,11 +99,19 @@ class TestIOMgmtFDPDisabled(BaseTest):
 
         if list_result["rc"] == 0:
             data = list_result.get("data", {})
+            raw_list = []
             if isinstance(data, list):
-                nsids = [int(ns) for ns in data if ns]
+                raw_list = data
             elif isinstance(data, dict):
-                raw = data.get("nsid_list", data.get("NamespaceList", []))
-                nsids = [int(ns) for ns in raw if ns]
+                raw_list = data.get("nsid_list", data.get("NamespaceList", []))
+            # Each element may be a plain int, a string, or a dict {"nsid": N}
+            for ns in raw_list:
+                if isinstance(ns, dict):
+                    v = ns.get("nsid", ns.get("NSID"))
+                    if v is not None:
+                        nsids.append(int(v))
+                elif ns:
+                    nsids.append(int(ns))
 
         if not nsids:
             # Fallback: try nsids 1 through 4

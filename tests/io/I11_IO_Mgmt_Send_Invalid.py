@@ -12,7 +12,7 @@ class TestIOMgmtSendInvalid(BaseTest):
     test_id = "io_management_send_invalid"
     name = "I11. IO Mgmt Send Invalid"
     description = (
-        "Sends an IO Management Send command (opcode 0x9D) targeting an "
+        "Sends an IO Management Send command (opcode 0x1D) targeting an "
         "invalid/out-of-range reclaim unit handle. Verifies the device correctly "
         "rejects the command with a failure status rather than silently succeeding."
     )
@@ -38,32 +38,28 @@ class TestIOMgmtSendInvalid(BaseTest):
         else:
             log("  RUHS check skipped (could not verify — proceeding anyway)")
 
-        # ── Step 2: Build payload targeting the invalid handle ────────────────
+        # ── Step 2: Build payload — 2 bytes containing the invalid RUH index ──
         log(f"\nStep 2: Building IO Management Send payload for invalid handle 0x{self.INVALID_HANDLE:04x}...")
-        payload = bytearray(4096)
-        offset = self.INVALID_HANDLE * 2
-        if offset + 2 <= len(payload):
-            struct.pack_into("<H", payload, offset, 0x0001)
-        else:
-            # Handle index beyond payload size — still send to exercise cdw12 path
-            log(f"  Handle offset {offset} exceeds payload — sending zeroed payload")
+        # The RUHU data structure is a 2-byte little-endian RUH identifier.
+        payload = struct.pack("<H", self.INVALID_HANDLE)
+        log(f"  Payload: 0x{payload.hex()} ({len(payload)} bytes)")
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as f:
             f.write(payload)
             payload_path = f.name
 
         # ── Step 3: Send the command ──────────────────────────────────────────
-        # NVMe spec: IO Management Send opcode = 0x9D
-        # CDW10 bits [3:0] = Select field: 0x0 = RUHU
-        log(f"Step 3: Issuing IO Management Send (opcode 0x9D) with invalid handle...")
+        # NVMe spec: IO Management Send opcode = 0x1D
+        # CDW10 = Management Operation field: 0x01 = Reclaim Unit Handle Update (RUHU)
+        log(f"Step 3: Issuing IO Management Send (opcode 0x1D) with invalid handle...")
         try:
             result = driver.run_cmd([
                 "io-passthru",
                 driver.device,
-                "--opcode=0x9D",        # IO Management Send
+                "--opcode=0x1D",        # IO Management Send
                 "--namespace-id=1",
-                "--cdw10=0",            # Select=0 → RUHU
-                "--data-len=4096",
+                "--cdw10=1",            # Management Operation 01h = RUHU
+                "--data-len=2",         # 2-byte RUH identifier only
                 "--write",              # data direction: host → device
                 f"--input-file={payload_path}",
             ], json_out=False)

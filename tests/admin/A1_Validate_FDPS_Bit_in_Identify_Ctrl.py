@@ -22,19 +22,24 @@ class TestAdminIdentifyFDPS(BaseTest):
         fdps_supported = parsed_id["fdps"]
         log(f"  FDPS (CTRATT Bit 19): {fdps_supported}")
 
-        log("Step 2: Testing Set Features (FID 1Dh) behavior...")
-        # Issue a Set Features to disable FDP (0x0) - this is a safe operation that simply tests command acceptance
-        set_feat_res = driver.set_feature_passthru(feature_id=0x1D, value=0x0, endgrp=endgrp)
+        log("Step 2: Deleting all namespaces (required by spec before Set Features FID 1Dh)...")
+        saved_ns = self._delete_all_ns(driver, log)
+        if not saved_ns:
+            log("  No namespaces found to delete.")
+
+        log("Step 3: Testing Set Features (FID 1Dh) behavior...")
+        # Issue a Set Features to disable FDP (0x0) — safe probe, tests command acceptance
+        set_feat_res = driver.set_feature_passthru(feature_id=0x1D, cdw11=endgrp, cdw12=0x0, save=True)
         command_accepted = (set_feat_res["rc"] == 0)
-        
+
+        log("Step 4: Restoring namespaces...")
+        self._restore_ns(driver, log, saved_ns)
+
         if fdps_supported:
             if command_accepted:
                 log("✓ FDPS is 1 and Set Features (FID 1Dh) was accepted.")
                 return TestResult(TestStatus.PASS, "Controller supports FDP and correctly accepts FID 1Dh.")
             else:
-                # Some controllers support FDP but reject Set Features with CDW12=endgrp
-                # (e.g. the endgrp is encoded differently). FDPS=1 is confirmed; treat
-                # the command rejection as a non-fatal implementation variation.
                 log(f"⚠ FDPS is 1 but Set Features was rejected: {set_feat_res['stderr'].strip()}")
                 log("  FDP is active (evidenced by working FDP commands) — treating as implementation variation.")
                 return TestResult(TestStatus.WARN,
@@ -47,3 +52,83 @@ class TestAdminIdentifyFDPS(BaseTest):
             else:
                 log("✗ FDPS is 0, but Set Features unexpectedly succeeded.")
                 return TestResult(TestStatus.FAIL, "Controller lacks FDP support but incorrectly accepted FID 1Dh.")
+
+    # ── Namespace lifecycle helpers ───────────────────────────────────────────
+
+    def _delete_all_ns(self, driver, log) -> list:
+        """
+        Detach and delete every namespace on the device.
+        Returns a list of dicts with enough info to recreate each namespace:
+          {"nsid": N, "nsze": N, "ncap": N, "flbas": N, "nphndls": N, "endg_id": N}
+        Required by NVMe spec before enabling or disabling FDP via Set Features.
+        """
+        list_res = driver.run_cmd(["list-ns", driver.device, "--all"], json_out=True)
+        raw_list = []
+        if list_res["rc"] == 0:
+            data = list_res.get("data", {})
+            if isinstance(data, dict):
+                raw_list = data.get("nsid_list", data.get("NamespaceList", []))
+            elif isinstance(data, list):
+                raw_list = data
+
+        saved = []
+        for raw in raw_list:
+            nsid = int(raw["nsid"]) if isinstance(raw, dict) else int(raw)
+            # Collect NS geometry for later restoration
+            id_res = driver.run_cmd(["id-ns", driver.device, f"--namespace-id={nsid}"],
+                                    json_out=True)
+            ns_info = {"nsid": nsid, "nsze": 0, "ncap": 0, "flbas": 0,
+                       "nphndls": 0, "endg_id": 1}
+            if id_res["rc"] == 0:
+                d = id_res.get("data", {})
+                if isinstance(d, dict):
+                    ns_info["nsze"]  = int(d.get("nsze", 0))
+                    ns_info["ncap"]  = int(d.get("ncap", ns_info["nsze"]))
+                    ns_info["flbas"] = int(d.get("flbas", 0)) & 0xF
+            saved.append(ns_info)
+
+            # Detach then delete
+            driver.run_cmd(["detach-ns", driver.device,
+                            f"--namespace-id={nsid}", "--controllers=0x1"],
+                           json_out=False)
+            del_res = driver.run_cmd(["delete-ns", driver.device,
+                                      f"--namespace-id={nsid}"], json_out=False)
+            if del_res["rc"] == 0:
+                log(f"  ✓ Deleted NSID {nsid}")
+            else:
+                log(f"  ⚠ Delete NSID {nsid} failed: {del_res['stderr'].strip()}")
+
+        return saved
+
+    def _restore_ns(self, driver, log, saved: list):
+        """
+        Re-create and re-attach each namespace from the list returned by
+        _delete_all_ns(). Best-effort — logs warnings on any failure.
+        """
+        import re as _re
+        for ns in saved:
+            args = [
+                "create-ns", driver.device,
+                f"--nsze={ns['nsze']}",
+                f"--ncap={ns['ncap']}",
+                f"--flbas={ns['flbas']}",
+                "--nmic=0",
+                f"--endg-id={ns['endg_id']}",
+            ]
+            if ns["nphndls"] > 0:
+                args.append(f"--nphndls={ns['nphndls']}")
+            cr = driver.run_cmd(args, json_out=False)
+            if cr["rc"] != 0:
+                log(f"  ⚠ Restore create-ns failed: {cr['stderr'].strip()}")
+                continue
+            # Parse new NSID
+            out = cr["stdout"] + cr["stderr"]
+            m = _re.search(r'nsid[:\s]+(\d+)', out, _re.IGNORECASE)
+            new_nsid = int(m.group(1)) if m else ns["nsid"]
+            at = driver.run_cmd(["attach-ns", driver.device,
+                                  f"--namespace-id={new_nsid}", "--controllers=0x1"],
+                                json_out=False)
+            if at["rc"] == 0:
+                log(f"  ✓ Restored NSID {new_nsid}")
+            else:
+                log(f"  ⚠ Attach NSID {new_nsid} failed: {at['stderr'].strip()}")

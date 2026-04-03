@@ -1,0 +1,56 @@
+08:44:21  ========================================================================
+08:44:21  RUN  : 90be799e
+08:44:21  DEV  : /dev/nvme0n1
+08:44:21  TESTS: nvme_write_invalid_pid, io_management_send_invalid
+08:44:21  ========================================================================
+08:44:21  
+08:44:21  ────────────────────────────────────────────────────────────
+08:44:21  TEST START: [nvme_write_invalid_pid] I2. NVMe Write Invalid Placement ID
+08:44:21  ────────────────────────────────────────────────────────────
+08:44:21  CMD: nvme admin-passthru /dev/nvme0n1 --opcode=0x09 --namespace-id=1 --cdw10=0x8000001E --cdw11=0x60000 --cdw12=0x1 --data-len=6 --write --input-file=/tmp/tmp252kmh43.bin
+08:44:21  RC : 0
+08:44:21  ERR: Admin Command Set Features is Success and result: 0x00000000
+08:44:21  TEST END  : [nvme_write_invalid_pid] status=error  msg=NVMeCliDriver.fdp_events() got an unexpected keyword argument 'ns'
+08:44:21  
+08:44:21  ────────────────────────────────────────────────────────────
+08:44:21  TEST START: [io_management_send_invalid] I11. IO Mgmt Send Invalid
+08:44:21  ────────────────────────────────────────────────────────────
+08:44:21  CMD: nvme fdp status /dev/nvme0n1 -n 1 -o json
+08:44:21  RC : 0
+08:44:21  OUT: {
+  "nruhsd":4,
+  "ruhss":[
+    {
+      "pid":0,
+      "ruhid":0,
+      "earutr":543447,
+      "ruamw":5644272
+    },
+    {
+      "pid":1,
+      "ruhid":1,
+      "earutr":540547,
+      "ruamw":5793408
+    },
+    {
+      "pid":2,
+      "ruhid":2,
+      "earutr":540547,
+      "ruamw":5793408
+    },
+    {
+      "pid":3,
+      "ruhid":3,
+      "earutr":540547,
+      "ruamw":5793408
+    }
+  ]
+}
+08:44:21  CMD: nvme io-passthru /dev/nvme0n1 --opcode=0x1D --namespace-id=1 --cdw10=1 --data-len=4096 --write --input-file=/tmp/tmpephp9ghj.bin
+08:44:21  RC : 0
+08:44:21  ERR: IO Command Vendor Specific is Success and result: 0x00000000
+08:44:21  TEST END  : [io_management_send_invalid] status=fail  msg=Device accepted IO Management Send for invalid handle 0x7fff without error — expected rejection
+08:44:21  
+08:44:21  ========================================================================
+08:44:21  RUN COMPLETE: complete  pass=0 fail=1 warn=0  elapsed=0.5s
+08:44:21  ========================================================================

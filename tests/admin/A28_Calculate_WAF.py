@@ -16,7 +16,7 @@ class TestAdminCalculateWAF(BaseTest):
         nsid = getattr(self, "params", {}).get("namespace", 1)
         
         log("Step 1: Attempting to reset FDP statistics via FDP disable/re-enable...")
-        res_dis = driver.set_feature_passthru(feature_id=0x1D, value=0x0, endgrp=endgrp)
+        res_dis = driver.set_feature_passthru(feature_id=0x1D, cdw11=endgrp, cdw12=0x0)
         if res_dis["rc"] != 0:
             log(f"  ⚠ Disable rejected ({res_dis['stderr'].strip()}) — skipping reset, proceeding with current counters.")
         else:

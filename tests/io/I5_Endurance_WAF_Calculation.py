@@ -1,7 +1,7 @@
 """
 Test: fdp_endurance
 Run an FDP-aware FIO workload and calculate Write Amplification Factor (WAF)
-by reading SMART log data before and after. Also reports per-handle capacity
+by reading FDP stats (nvme fdp stats) before and after. Also reports per-handle capacity
 consumption for FDP efficiency analysis.
 """
 
@@ -17,12 +17,12 @@ class TestFDPEndurance(BaseTest):
     name = "I5. Endurance — WAF Calculation"
     description = (
         "Runs an FDP-aware FIO write workload and calculates Write Amplification "
-        "Factor (WAF) by comparing host-written and NAND-written units from the "
-        "NVMe SMART log before and after the workload. A WAF close to 1.0 "
-        "indicates optimal FDP placement efficiency."
+        "Factor (WAF) by comparing host bytes media written (hbmw) and media bytes "
+        "media written (mbmw) from nvme fdp stats before and after the workload. "
+        "A WAF close to 1.0 indicates optimal FDP placement efficiency."
     )
     category = "IO"
-    tags = ["fio", "waf", "smart", "endurance", "write-amplification"]
+    tags = ["fio", "waf", "fdp-stats", "endurance", "write-amplification"]
 
     DEFAULT_PARAMS = {
         "fio_duration_sec":   30,
@@ -36,16 +36,17 @@ class TestFDPEndurance(BaseTest):
     def run(self, driver, log) -> TestResult:
         p = {**self.DEFAULT_PARAMS, **getattr(self, "params", {})}
 
-        # ── Step 1: Read SMART log baseline ───────────────────────────────────
-        log("Step 1: Reading SMART log (baseline)...")
-        smart_before = self._read_smart(driver, log)
-        if smart_before is None:
-            return TestResult(TestStatus.FAIL, "Cannot read SMART log — required for WAF calculation")
+        # ── Step 1: Read FDP stats baseline ───────────────────────────────────
+        endgrp = getattr(self, "params", {}).get("endgrp", 1)
+        log("Step 1: Reading FDP stats (baseline)...")
+        stats_before = self._read_fdp_stats(driver, log, endgrp)
+        if stats_before is None:
+            return TestResult(TestStatus.FAIL, "Cannot read FDP stats — required for WAF calculation")
 
-        host_written_before = self._get_host_written(smart_before)
-        nand_written_before = self._get_nand_written(smart_before)
-        log(f"  Host written (before): {host_written_before:,} units")
-        log(f"  NAND written (before): {nand_written_before:,} units")
+        host_written_before = stats_before["hbmw"]
+        nand_written_before = stats_before["mbmw"]
+        log(f"  Host bytes media written (before): {host_written_before:,}")
+        log(f"  Media bytes media written (before): {nand_written_before:,}")
 
         # ── Step 2: Read RUHS baseline ────────────────────────────────────────
         log("\nStep 2: Reading RUHS baseline...")
@@ -59,30 +60,24 @@ class TestFDPEndurance(BaseTest):
         if subprocess.run(["which", "fio"], capture_output=True).returncode != 0:
             return TestResult(TestStatus.SKIP, "fio not found — install with: sudo apt install fio")
         log("  ✓ fio found")
+        # Ensure io_uring is enabled (disabled by default on some kernels after boot)
+        subprocess.run(["sysctl", "-w", "kernel.io_uring_disabled=0"],
+                       capture_output=True)
 
         # ── Step 4: Run FIO ───────────────────────────────────────────────────
-        dev_path = driver.device
-        ns_dev = dev_path if "n" in dev_path.split("/")[-1] else dev_path + f"n{p['namespace']}"
-        log(f"\nStep 4: Running FDP FIO workload on {ns_dev}...")
+        # io_uring_cmd requires a generic char device (/dev/ngXnY) rather than
+        # the block namespace device (/dev/nvmeXnY). Derive it from driver.device:
+        #   /dev/nvme0n1  →  /dev/ng0n1
+        #   /dev/nvme1n2  →  /dev/ng1n2
+        import re as _re
+        _m = _re.search(r'nvme(\d+)n(\d+)', driver.device)
+        ng_dev = f"/dev/ng{_m.group(1)}n{_m.group(2)}" if _m else driver.device
+        log(f"\nStep 4: Running FIO workload on {ng_dev} (io_uring_cmd)...")
         log(f"  Duration: {p['fio_duration_sec']}s  BS: {p['fio_block_size']}  "
             f"QD: {p['fio_queue_depth']}  Jobs: {p['fio_num_jobs']}")
 
-        fio_job = f"""
-[global]
-ioengine=io_uring
-direct=1
-rw=write
-bs={p['fio_block_size']}
-iodepth={p['fio_queue_depth']}
-numjobs={p['fio_num_jobs']}
-runtime={p['fio_duration_sec']}
-time_based=1
-fdp=1
-fdp_pli={p['placement_handle']}
+        fio_job = self._build_fio_job(ng_dev, p)
 
-[endurance_test]
-filename={ns_dev}
-"""
         fio_stats = {}
         with tempfile.NamedTemporaryFile(mode="w", suffix=".fio", delete=False) as f:
             f.write(fio_job)
@@ -98,12 +93,6 @@ filename={ns_dev}
 
             if fio_result.returncode != 0:
                 stderr = fio_result.stderr.strip()
-                if "fdp" in stderr.lower():
-                    return TestResult(
-                        TestStatus.WARN,
-                        f"FIO does not support FDP on this system: {stderr[:200]}. "
-                        "Requires fio 3.34+ and kernel 6.2+ with io_uring"
-                    )
                 return TestResult(TestStatus.FAIL, f"FIO failed: {stderr[:300]}")
 
             try:
@@ -120,41 +109,41 @@ filename={ns_dev}
                     log(f"  ✓ FIO done — {fio_stats['bw_mbs']} MB/s  {fio_stats['iops']} IOPS  "
                         f"lat={fio_stats['lat_us']}µs  written={fio_stats['io_bytes']//1024//1024}MB")
             except Exception:
-                log("  FIO output parsing failed — continuing with SMART check")
+                log("  FIO output parsing failed — continuing with FDP stats check")
         finally:
             os.unlink(fio_path)
 
-        # ── Step 5: Read SMART log after ──────────────────────────────────────
-        log("\nStep 5: Reading SMART log (post-workload)...")
-        smart_after = self._read_smart(driver, log)
-        if smart_after is None:
+        # ── Step 5: Read FDP stats after ──────────────────────────────────────
+        log("\nStep 5: Reading FDP stats (post-workload)...")
+        stats_after = self._read_fdp_stats(driver, log, endgrp)
+        if stats_after is None:
             return TestResult(
                 TestStatus.WARN,
-                "FIO workload completed but SMART log could not be re-read for WAF calculation"
+                "FIO workload completed but FDP stats could not be re-read for WAF calculation"
             )
 
-        host_written_after = self._get_host_written(smart_after)
-        nand_written_after = self._get_nand_written(smart_after)
-        log(f"  Host written (after):  {host_written_after:,} units")
-        log(f"  NAND written (after):  {nand_written_after:,} units")
+        host_written_after = stats_after["hbmw"]
+        nand_written_after = stats_after["mbmw"]
+        log(f"  Host bytes media written (after):  {host_written_after:,}")
+        log(f"  Media bytes media written (after): {nand_written_after:,}")
 
         # ── Step 6: Calculate WAF ─────────────────────────────────────────────
         log("\nStep 6: Calculating Write Amplification Factor (WAF)...")
         delta_host = host_written_after - host_written_before
         delta_nand = nand_written_after - nand_written_before
 
-        log(f"  ΔHost written: {delta_host:,} units")
-        log(f"  ΔNAND written: {delta_nand:,} units")
+        log(f"  ΔHost bytes media written:  {delta_host:,}")
+        log(f"  ΔMedia bytes media written: {delta_nand:,}")
 
         if delta_host <= 0:
             return TestResult(
                 TestStatus.WARN,
-                "Host-written units did not increase in SMART log — "
-                "device may update SMART counters infrequently or at coarse granularity"
+                "Host bytes media written did not increase — "
+                "device may update FDP stats counters infrequently"
             )
 
         if delta_nand <= 0:
-            log("  NAND-written counter did not change (vendor-specific field may not be supported)")
+            log("  Media bytes media written did not change")
             waf = None
         else:
             waf = round(delta_nand / delta_host, 3)
@@ -179,8 +168,8 @@ filename={ns_dev}
         if waf is None:
             return TestResult(
                 TestStatus.WARN,
-                f"FIO completed. WAF could not be calculated (NAND-written counter unsupported). "
-                f"Host wrote {delta_host} units. RUHS consumed {cap_delta} sectors.",
+                f"FIO completed. WAF could not be calculated (mbmw counter did not change). "
+                f"Host wrote {delta_host} bytes. RUHS consumed {cap_delta} sectors.",
                 details=details
             )
 
@@ -199,32 +188,46 @@ filename={ns_dev}
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 
-    def _read_smart(self, driver, log) -> dict | None:
-        result = driver.run_cmd(["smart-log", driver.device], json_out=True)
+    def _build_fio_job(self, ng_dev: str, p: dict) -> str:
+        """Build an FDP fio job using io_uring_cmd against the generic char device."""
+        lines = [
+            "[global]",
+            "ioengine=io_uring_cmd",
+            "rw=write",
+            f"bs={p['fio_block_size']}",
+            f"iodepth={p['fio_queue_depth']}",
+            f"numjobs={p['fio_num_jobs']}",
+            f"runtime={p['fio_duration_sec']}",
+            "time_based=1",
+            "fdp=1",
+            f"fdp_pli={p['placement_handle']}",
+            "fdp_pli_select=roundrobin",
+            "",
+            "[endurance_test]",
+            f"filename={ng_dev}",
+            "",
+        ]
+        return "\n".join(lines)
+
+    def _read_fdp_stats(self, driver, log, endgrp: int = 1) -> dict | None:
+        """
+        Read FDP statistics via `nvme fdp stats`.
+        Returns {"hbmw": <int>, "mbmw": <int>} or None on failure.
+          hbmw : Host Bytes Media Written
+          mbmw : Media Bytes Media Written (used for WAF denominator)
+        """
+        result = driver.run_cmd(
+            ["fdp", "stats", driver.device, f"--endgrp-id={endgrp}"],
+            json_out=True
+        )
         if result["rc"] != 0:
-            log(f"  SMART log error: {result['stderr'].strip()}")
+            log(f"  FDP stats error: {result['stderr'].strip()}")
             return None
-        return result.get("data", {})
-
-    def _get_host_written(self, smart: dict) -> int:
-        for key in ("data_units_written", "DataUnitsWritten", "data_units_write"):
-            if key in smart:
-                val = smart[key]
-                # SMART returns 512-byte units; may be dict with 'lo'/'hi' for 128-bit
-                if isinstance(val, dict):
-                    return int(val.get("lo", 0)) + (int(val.get("hi", 0)) << 64)
-                return int(val)
-        return 0
-
-    def _get_nand_written(self, smart: dict) -> int:
-        # Vendor-specific field — common keys across major NVMe vendors
-        for key in ("nand_bytes_written", "physical_media_units_written",
-                    "PhysicalMediaUnitsWritten", "nand_writes_1gib",
-                    "vendor_specific_media_units_written"):
-            if key in smart:
-                val = smart[key]
-                if isinstance(val, dict):
-                    return int(val.get("lo", 0)) + (int(val.get("hi", 0)) << 64)
-                return int(val)
-        return 0
-
+        data = result.get("data", {})
+        if not isinstance(data, dict):
+            log("  FDP stats returned unexpected format")
+            return None
+        return {
+            "hbmw": int(data.get("hbmw", 0)),
+            "mbmw": int(data.get("mbmw", 0)),
+        }

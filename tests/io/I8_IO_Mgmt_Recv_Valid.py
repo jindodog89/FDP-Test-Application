@@ -66,29 +66,19 @@ class TestIOMgmtReceiveValid(BaseTest):
                 "fio not found — install with: sudo apt install fio"
             )
         log("  ✓ fio found")
+        # Ensure io_uring is enabled (disabled by default on some kernels after boot)
+        subprocess.run(["sysctl", "-w", "kernel.io_uring_disabled=0"],
+                       capture_output=True)
 
         # ── Step 3: Run FIO with FDP directives ───────────────────────────────
-        dev_path = driver.device
-        # Use the namespace device (e.g. /dev/nvme0n1) for FIO
-        ns_dev = dev_path if "n1" in dev_path else dev_path + f"n{p['namespace']}"
-        log(f"\nStep 3: Running FIO on {ns_dev} for {p['fio_duration_sec']}s...")
+        # io_uring_cmd requires the generic char device (/dev/ngXnY)
+        import re as _re
+        _m = _re.search(r'nvme(\d+)n(\d+)', driver.device)
+        ng_dev = f"/dev/ng{_m.group(1)}n{_m.group(2)}" if _m else driver.device
+        log(f"\nStep 3: Running FIO on {ng_dev} (io_uring_cmd) for {p['fio_duration_sec']}s...")
         log(f"  Block size: {p['fio_block_size']}  QD: {p['fio_queue_depth']}  Handle: {p['placement_handle']}")
 
-        fio_job = f"""
-[global]
-ioengine=io_uring
-direct=1
-rw=write
-bs={p['fio_block_size']}
-iodepth={p['fio_queue_depth']}
-runtime={p['fio_duration_sec']}
-time_based=1
-fdp=1
-fdp_pli={p['placement_handle']}
-
-[fdp_test]
-filename={ns_dev}
-"""
+        fio_job = self._build_fio_job(ng_dev, p)
         with tempfile.NamedTemporaryFile(mode="w", suffix=".fio", delete=False) as f:
             f.write(fio_job)
             fio_job_path = f.name
@@ -103,13 +93,6 @@ filename={ns_dev}
 
             if fio_result.returncode != 0:
                 stderr = fio_result.stderr.strip()
-                # FDP-capable fio may require newer kernels; provide useful guidance
-                if "fdp" in stderr.lower() or "invalid" in stderr.lower():
-                    return TestResult(
-                        TestStatus.WARN,
-                        f"FIO does not support FDP directives on this system: {stderr[:200]}. "
-                        "Requires fio 3.34+ with io_uring and kernel 6.2+"
-                    )
                 return TestResult(TestStatus.FAIL, f"FIO failed: {stderr[:300]}")
 
             log("  ✓ FIO workload completed")
@@ -162,6 +145,26 @@ filename={ns_dev}
             )
 
     # ── Helpers ──────────────────────────────────────────────────────────────
+
+    def _build_fio_job(self, ng_dev: str, p: dict) -> str:
+        """Build an FDP fio job using io_uring_cmd against the generic char device."""
+        lines = [
+            "[global]",
+            "ioengine=io_uring_cmd",
+            "rw=write",
+            f"bs={p['fio_block_size']}",
+            f"iodepth={p['fio_queue_depth']}",
+            f"runtime={p['fio_duration_sec']}",
+            "time_based=1",
+            "fdp=1",
+            f"fdp_pli={p['placement_handle']}",
+            "fdp_pli_select=roundrobin",
+            "",
+            "[fdp_test]",
+            f"filename={ng_dev}",
+            "",
+        ]
+        return "\n".join(lines)
 
     def _find_handle(self, ruhs: list, ruhid: int) -> dict | None:
         """Return the RUHS entry whose ruhid matches, or None."""

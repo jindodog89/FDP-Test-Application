@@ -21,9 +21,9 @@ class TestAdminValidateEventMasking(BaseTest):
         log(f"  Baseline Event Count: {initial_count}")
 
         log("Step 2: Disabling 'Invalid Placement Identifier' event (Type 0x00) via Set Features (FID 1Eh)...")
-        disable_val = (0 << 8) | 0x00
-        #dis_res = driver.set_feature(feature_id=0x1E, value=disable_val, cdw12=endgrp)
-        dis_res = driver.set_feature_passthru(feature_id=0x1E, value=disable_val, endgrp=endgrp)
+        # CDW layout: CDW10=0x8000001E, CDW11=0x00010000|event_type, CDW12=0 (disable)
+        dis_res = driver.set_fdp_event_passthru(event_type=0x00, enable=False,
+                                                endgrp=endgrp, namespace=nsid)
         if dis_res["rc"] != 0:
             log(f"  ⚠ FID 1Eh not supported or timed out: {dis_res['stderr'].strip()}")
             return TestResult(TestStatus.SKIP,

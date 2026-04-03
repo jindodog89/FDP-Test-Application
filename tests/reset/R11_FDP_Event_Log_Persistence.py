@@ -61,6 +61,10 @@ class TestFDPEventLogPersistReset(ResetTestBase, BaseTest):
         if skip:
             return skip
 
+        # Enable all FDP event types before baseline read
+        # (disabled by default on some devices after boot)
+        driver.enable_all_fdp_events(endgrp=p["endgrp"], namespace=p["namespace"])
+
         # ── Step 2: Read FDP Events log baseline ──────────────────────────────
         log(f"\nStep 2: Reading FDP Events log baseline (endgrp={p['endgrp']})...")
         events_before = self._read_events_log(driver, log, p["endgrp"])

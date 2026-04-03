@@ -12,7 +12,10 @@ class TestAdminValidateEventLogHeader(BaseTest):
 
     def run(self, driver, log) -> TestResult:
         endgrp = getattr(self, "params", {}).get("endgrp", 1)
-        
+        nsid   = getattr(self, "params", {}).get("namespace", 1)
+        # Enable all FDP event types — disabled by default on some devices after boot
+        driver.enable_all_fdp_events(endgrp=endgrp, namespace=nsid)
+
         log(f"Step 1: Issuing Get Log Page (LID 23h) for Endurance Group {endgrp}...")
         log_res = driver.fdp_events(endgrp=endgrp)
         
@@ -22,7 +25,8 @@ class TestAdminValidateEventLogHeader(BaseTest):
         data = log_res.get("data", {})
         
         # nvme-cli typically outputs 'num_events' and the 'events' array
-        num_events_header = int(data.get("num_events", data.get("nevents", 0)))
+        # nvme-cli uses "n", "num_events", or "nevents" depending on version
+        num_events_header = int(data.get("n", data.get("num_events", data.get("nevents", 0))))
         events_array = data.get("events", data.get("FdpEvents", []))
         array_count = len(events_array)
         

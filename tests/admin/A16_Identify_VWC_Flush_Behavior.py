@@ -5,7 +5,7 @@ from tests.base_test import BaseTest, TestResult, TestStatus
 
 class TestAdminIdentifyVWCFlush(BaseTest):
     test_id = "admin_identify_vwc_flush"
-    name = "A16. Identigy VWC Flush Behavior"
+    name = "A16. Identify VWC Flush Behavior"
     description = "Reads VWC Byte 525 and verifies the Flush Behavior (bits 2:1) is valid (10b or 11b)."
     category = "Admin"
     tags = ["admin", "identify", "vwc", "flush"]

@@ -122,7 +122,8 @@ class DUTConfig:
         feat_r = _run("get_feature_fdp",
                       driver.run_cmd(
                           ["get-feature", driver.device,
-                           "--feature-id=0x1d", "--cdw11=1"],
+                           "--feature-id=0x1d", "--cdw11=1",
+                           "--namespace-id=0"],
                           json_out=True
                       ))
         self.fdp_feature = feat_r.get("data")

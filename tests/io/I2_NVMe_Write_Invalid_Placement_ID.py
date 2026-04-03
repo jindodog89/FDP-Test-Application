@@ -26,6 +26,11 @@ class TestNVMeWriteInvalidPID(BaseTest):
     INVALID_HANDLE = 0xFFFF
 
     def run(self, driver, log) -> TestResult:
+        endgrp = getattr(self, "params", {}).get("endgrp", 1)
+        nsid   = getattr(self, "params", {}).get("namespace", 1)
+        # Enable all FDP event types — disabled by default on some devices after boot
+        driver.enable_all_fdp_events(endgrp=endgrp, namespace=nsid)
+
         # ── Step 1: Read FDP events log before the write ─────────────────────
         log("Step 1: Reading FDP events log (baseline)...")
         events_before = self._read_events(driver, log)
@@ -106,7 +111,7 @@ class TestNVMeWriteInvalidPID(BaseTest):
     # ── Helpers ──────────────────────────────────────────────────────────────
 
     def _read_events(self, driver, log) -> list:
-        result = driver.fdp_events(ns=1)
+        result = driver.fdp_events(endgrp=1, host_events=True)
         if result["rc"] != 0:
             log(f"  Could not read events: {result['stderr'].strip()}")
             return []
@@ -123,8 +128,7 @@ class TestNVMeWriteInvalidPID(BaseTest):
         count = 0
         for e in events:
             etype = e.get("etype", e.get("EventType", e.get("type", "")))
-            # FDP event type 0x1 = Invalid Placement Identifier
-            if str(etype) in ("1", "0x1", "invalid_pid", "InvalidPlacementIdentifier"):
+            # FDP event type 0x3 = Invalid Placement Identifier
+            if str(etype) in ("3", "0x3", "invalid_pid", "Invalid Placement Identifier"):
                 count += 1
         return count
-
