@@ -25,9 +25,10 @@ class TestAdminEnableFDPInvalidConfig(BaseTest):
         )
         '''
         enable_result = driver.set_feature_passthru(
-            feature_id=0x1D, 
-            value=invalid_val, 
-            endgrp=endgrp
+            feature_id=0x1D,
+            cdw11=endgrp,
+            cdw12=invalid_val,
+            save=True
         )
 
         if enable_result["rc"] != 0:

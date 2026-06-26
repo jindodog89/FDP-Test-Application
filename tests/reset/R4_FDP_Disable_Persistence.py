@@ -60,29 +60,33 @@ class TestFDPDisablePersistenceAcrossReset(ResetTestBase, BaseTest):
             )
         log("  ✓ FDP is currently enabled — proceeding to disable it")
 
-        # ── Step 2: Disable FDP ────────────────────────────────────────────────
-        log(f"\nStep 2: Disabling FDP (endgrp={p['endgrp']})...")
-        disable_result = driver.run_cmd(
-            ["fdp", driver.device,
-             f"--endgrp-id={p['endgrp']}", "--disable"],
-            json_out=False
-        )
-        log(f"  Command: {disable_result.get('cmd', '')}")
-        log(f"  RC: {disable_result['rc']}")
-        if disable_result.get("stderr", "").strip():
-            log(f"  stderr: {disable_result['stderr'].strip()}")
+        # ── Step 2: Save NS, delete all NS, disable FDP, restore NS ───────────
+        import re as _re
+        ctrl_dev = _re.sub(r"n\d+$", "", driver.device)
+        endgrp   = int(p["endgrp"])
 
-        if disable_result["rc"] != 0:
+        log(f"\nStep 2a: Saving namespace geometry...")
+        saved_ns = self._save_ns_list(driver, log, ctrl_dev)
+
+        log(f"\nStep 2b: Deleting all namespaces (required before FDP disable)...")
+        self._delete_all_ns(driver, log, ctrl_dev)
+
+        log(f"\nStep 2c: Disabling FDP (Set Features FID 0x1D, endgrp={endgrp})...")
+        if not self._set_fdp_enabled(driver, log, ctrl_dev,
+                                      enable=False, endgrp=endgrp):
+            log("  Restoring namespaces after failed disable...")
+            self._restore_ns_list(driver, log, ctrl_dev, saved_ns)
             return TestResult(
-                TestStatus.SKIP,
-                "Could not disable FDP — device may have active namespaces. "
-                "Delete all namespaces before disabling FDP: "
-                "nvme delete-ns <dev> --namespace-id=<N>  "
-                f"stderr: {disable_result.get('stderr','').strip()}"
+                TestStatus.FAIL,
+                "FDP disable via Set Features FID 0x1D failed — "
+                "namespaces have been restored."
             )
 
-        log("  ✓ FDP disabled — verifying...")
-        state_after_disable = self._get_fdp_enable_state(driver, log, endgrp=p["endgrp"])
+        log(f"\nStep 2d: Restoring namespaces with FDP now disabled...")
+        self._restore_ns_list(driver, log, ctrl_dev, saved_ns)
+
+        log("\nStep 2e: Verifying FDP is disabled...")
+        state_after_disable = self._get_fdp_enable_state(driver, log, endgrp=endgrp)
         if state_after_disable:
             self._reenable_fdp(driver, log, p)
             return TestResult(

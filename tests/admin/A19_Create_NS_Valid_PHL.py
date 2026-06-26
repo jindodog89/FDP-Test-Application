@@ -22,12 +22,15 @@ class TestAdminCreateNSValidPHL(BaseTest):
         nsze = 0x10000
         
         log(f"Step 2: Creating namespace with FDP handles (endg-id={endgrp}, nphndls=8)...")
+        # --phndls must list each handle index explicitly; --nphndls alone is
+        # insufficient and causes "Invalid Placement Handle List" on most devices.
         create_res = driver.create_ns(
-            nsze=nsze, 
-            ncap=nsze, 
-            flbas=0, 
-            endg_id=endgrp, 
-            nphndls=8
+            nsze=nsze,
+            ncap=nsze,
+            flbas=0,
+            endg_id=endgrp,
+            nphndls=8,
+            phndls="0,1,2,3,4,5,6,7",
         )
 
         if create_res["rc"] == 0:

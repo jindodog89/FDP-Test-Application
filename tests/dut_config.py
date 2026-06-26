@@ -28,6 +28,7 @@ which calls DUTConfig.populate(driver) and stores the result here.
 
 from __future__ import annotations
 from dataclasses import dataclass, field
+import re
 from datetime import datetime
 from typing import Any
 
@@ -118,10 +119,13 @@ class DUTConfig:
             })
             return result
 
+        # Derive controller device once — used throughout populate()
+        ctrl_dev = re.sub(r'n\d+$', '', driver.device)
+
         # ── 1. FDP enable state ───────────────────────────────────────────────
         feat_r = _run("get_feature_fdp",
                       driver.run_cmd(
-                          ["get-feature", driver.device,
+                          ["get-feature", ctrl_dev,
                            "--feature-id=0x1d", "--cdw11=1",
                            "--namespace-id=0"],
                           json_out=True
@@ -133,10 +137,55 @@ class DUTConfig:
         cfg_r = _run("fdp_configs", driver.get_fdp_configs(endgrp=1))
         self.fdp_configs = cfg_r.get("data")
 
-        # ── 3. Reclaim Unit Handle Status (RUHS) ──────────────────────────────
-        ruhs_r = _run("fdp_ruhs", driver.get_reclaim_unit_handle_status(namespace=1))
-        self.ruhs   = driver.extract_ruhs(ruhs_r)
-        self.n_ruhs = len(self.ruhs) if self.ruhs is not None else None
+        # ── 3-6. All namespaces: list-ns on controller, then per-NS id-ns + RUHS ─
+        idns_r = _run("id_ns", driver.run_cmd(
+            ["id-ns", driver.device, "--namespace-id=1"], json_out=True))
+        self.id_ns = idns_r.get("data")
+
+        ns_list_r = driver.run_cmd(["list-ns", ctrl_dev, "--all"], json_out=True)
+        all_ns = []
+        if ns_list_r["rc"] == 0:
+            ns_data = ns_list_r.get("data", {})
+            raw_list = []
+            if isinstance(ns_data, dict):
+                raw_list = ns_data.get("nsid_list", ns_data.get("NamespaceList", []))
+            elif isinstance(ns_data, list):
+                raw_list = ns_data
+            for raw in raw_list:
+                nsid = int(raw["nsid"]) if isinstance(raw, dict) else int(raw)
+                ns_entry = {"nsid": nsid}
+                # id-ns
+                idr = driver.run_cmd(["id-ns", ctrl_dev,
+                                      f"--namespace-id={nsid}"], json_out=True)
+                if idr["rc"] == 0:
+                    d = idr.get("data", {})
+                    if isinstance(d, dict):
+                        ns_entry["id_ns"] = d
+                # RUHS per namespace — fdp status takes the namespace device
+                # path directly (e.g. /dev/nvme0n1); -n flag causes "invalid
+                # argument" on this device.
+                ns_dev = ctrl_dev + f"n{nsid}"
+                ruhs_r = _run(f"fdp_ruhs_ns{nsid}",
+                    driver.run_cmd(["fdp", "status", ns_dev], json_out=True))
+                ns_entry["ruhs"] = driver.extract_ruhs(ruhs_r) or []
+                ns_entry["ruhs_rc"]  = ruhs_r.get("rc")
+                ns_entry["ruhs_err"] = ruhs_r.get("stderr", "").strip()
+                all_ns.append(ns_entry)
+        if not all_ns:
+            # Fallback: at least include NSID 1 with whatever RUHS we can get
+            ruhs_r = _run("fdp_ruhs", driver.run_cmd(
+                ["fdp", "status", ctrl_dev + "n1"], json_out=True))
+            self.ruhs = driver.extract_ruhs(ruhs_r)
+            all_ns = [{"nsid": 1, "id_ns": self.id_ns, "ruhs": self.ruhs or []}]
+        else:
+            # Use first NS RUHS as the top-level summary for backwards compat
+            _first_ns_dev = ctrl_dev + f"n{all_ns[0]['nsid']}"
+            _run("fdp_ruhs", driver.run_cmd(
+                ["fdp", "status", _first_ns_dev], json_out=True))
+
+        # Top-level ruhs = first namespace's handles (used by diagram header)
+        self.ruhs   = all_ns[0]["ruhs"] if all_ns else []
+        self.n_ruhs = max(len(ns.get("ruhs", [])) for ns in all_ns) if all_ns else None
 
         # ── 4. FDP RUH Usage log ──────────────────────────────────────────────
         usage_r = _run("fdp_usage", driver.get_fdp_placement_ids(endgrp=1))
@@ -146,7 +195,13 @@ class DUTConfig:
         stats_r = _run("fdp_stats", driver.get_fdp_stats(endgrp=1))
         self.fdp_stats = stats_r.get("data")
 
+        # ── 7. Identify Controller — for tnvmcap (total NVM capacity) ────────
+        idctrl_r = _run("id_ctrl", driver.run_cmd(
+            ["id-ctrl", ctrl_dev], json_out=True))
+        self.id_ctrl = idctrl_r.get("data")
+
         # ── Build human-readable summary for the GUI modal ───────────────────
+        summary["id_ctrl"]     = self.id_ctrl
         summary["fdp_enabled"] = self.fdp_enabled
         summary["n_ruhs"]      = self.n_ruhs
         summary["ruhs"]        = self.ruhs
@@ -154,6 +209,8 @@ class DUTConfig:
         summary["fdp_usage"]   = self.fdp_usage
         summary["fdp_stats"]   = self.fdp_stats
         summary["fdp_feature"] = self.fdp_feature
+        summary["id_ns"]       = self.id_ns
+        summary["namespaces"]  = all_ns
         return summary
 
     # ── Helpers ───────────────────────────────────────────────────────────────
@@ -163,20 +220,68 @@ class DUTConfig:
         """
         Parse the get-feature FID 0x1D response to determine if FDP is enabled.
         Returns True/False, or None if the command failed or output is ambiguous.
+
+        nvme-cli returns a nested structure for FID 0x1D:
+          {
+            ...,
+            "Feature: 0x1d": [
+              {
+                "Flexible Data Placement Enable (FDPE)": "Yes",
+                ...
+              }
+            ],
+            ...
+          }
+        Fallback tiers handle older/alternative nvme-cli output formats.
         """
+        import re as _re
+
         if feat_result.get("rc", -1) != 0:
             return None
+
         data = feat_result.get("data", {})
-        if not isinstance(data, dict):
-            return None
-        for key in ("fdp_enabled", "FdpEnabled", "FDP Enabled", "value", "result"):
-            if key in data:
-                raw = data[key]
-                try:
-                    val = int(str(raw).split()[0], 0) if isinstance(raw, str) else int(raw)
-                    return bool(val)
-                except (ValueError, TypeError):
-                    pass
+
+        if isinstance(data, dict):
+            # 1. Primary: scan for a key containing "Feature: 0x1d" (case-insensitive)
+            #    whose value is a list of dicts containing the FDPE field.
+            for key, val in data.items():
+                if _re.search(r'feature.*0x1d', str(key), _re.IGNORECASE):
+                    entries = val if isinstance(val, list) else [val]
+                    for entry in entries:
+                        if not isinstance(entry, dict):
+                            continue
+                        for ekey, eVal in entry.items():
+                            if 'fdpe' in ekey.lower() or 'flexible data placement enable' in ekey.lower():
+                                return str(eVal).strip().lower() in ('yes', '1', 'true', 'enabled')
+
+            # 2. Clean JSON keys fallback
+            for key in ("fdp_enabled", "FdpEnabled", "FDP Enabled", "value", "result"):
+                if key in data:
+                    raw = data[key]
+                    try:
+                        val = int(str(raw).split()[0], 0) if isinstance(raw, str) else int(raw)
+                        return bool(val)
+                    except (ValueError, TypeError):
+                        pass
+
+            # 3. Description-as-key scan — e.g. "..., value : 0x00000001"
+            for key in data:
+                m = _re.search(r'value\s*[=:]\s*(0x[0-9a-fA-F]+|\d+)', str(key))
+                if m:
+                    try:
+                        return bool(int(m.group(1), 0))
+                    except (ValueError, TypeError):
+                        pass
+
+        # 4. Raw stdout fallback
+        stdout = feat_result.get("stdout", "")
+        m = _re.search(r'value\s*[=:]\s*(0x[0-9a-fA-F]+|\d+)', stdout, _re.IGNORECASE)
+        if m:
+            try:
+                return bool(int(m.group(1), 0))
+            except (ValueError, TypeError):
+                pass
+
         return None
 
     def clear(self):

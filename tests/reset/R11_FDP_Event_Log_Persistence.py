@@ -14,7 +14,7 @@ This test:
   3. Issues a Controller Reset.
   4. Re-reads the event log and verifies:
        a) The entry count did not decrease (entries were not cleared).
-       b) A new "Controller Level Reset" event (type 0x03) was added.
+       b) A new "Controller Level Reset" event (type 0x02) was added.
 
 Pass criteria : Event count did not decrease; CLR event present post-reset.
 Warn criteria : Events persisted but no CLR event added (firmware optional).
@@ -33,7 +33,7 @@ class TestFDPEventLogPersistReset(ResetTestBase, BaseTest):
     description = (
         "Verifies that the FDP Events log ring buffer is preserved across a "
         "Controller Reset and that the firmware appends a 'Controller Level "
-        "Reset' event entry (type 0x03) as required by NVMe TP4146. "
+        "Reset' event entry (type 0x02) as required by NVMe TP4146. "
         "Also confirms the log was not cleared by the reset."
     )
     category = "Reset"
@@ -48,7 +48,7 @@ class TestFDPEventLogPersistReset(ResetTestBase, BaseTest):
     FDP_EVENT_INVALID_PH      = 0x00
     FDP_EVENT_RU_NOT_WRITTEN  = 0x01
     FDP_EVENT_RU_TIME_EXPIRY  = 0x02
-    FDP_EVENT_CTRL_LEVEL_RST  = 0x03
+    FDP_EVENT_CTRL_LEVEL_RST  = 0x02
     FDP_EVENT_MEDIA_REALLOC   = 0x04
     FDP_EVENT_IMPLICITLY_ROTATED = 0x05
 
@@ -95,7 +95,10 @@ class TestFDPEventLogPersistReset(ResetTestBase, BaseTest):
             )
 
         # ── Step 5: Re-read FDP Events log ────────────────────────────────────
-        log(f"\nStep 5: Re-reading FDP Events log post-reset...")
+        log(f"\nStep 5a: Re-enabling all FDP events after reset...")
+        driver.enable_all_fdp_events(endgrp=p["endgrp"], namespace=p["namespace"])
+
+        log(f"\nStep 5b: Re-reading FDP Events log post-reset...")
         events_after = self._read_events_log(driver, log, p["endgrp"])
         if events_after is None:
             return TestResult(
@@ -132,9 +135,9 @@ class TestFDPEventLogPersistReset(ResetTestBase, BaseTest):
         clr_present = self._has_event_type(events_after, self.FDP_EVENT_CTRL_LEVEL_RST,
                                             after_seq=last_seq_before)
         if clr_present:
-            log("  ✓ Controller Level Reset event (0x03) was appended to the log")
+            log("  ✓ Controller Level Reset event (0x02) was appended to the log")
         else:
-            log("  ⚠ No Controller Level Reset event (0x03) found after reset — "
+            log("  ⚠ No Controller Level Reset event (0x02) found after reset — "
                 "firmware may not log CLR events (optional per spec)")
 
         if issues:
@@ -150,13 +153,13 @@ class TestFDPEventLogPersistReset(ResetTestBase, BaseTest):
                 TestStatus.WARN,
                 f"FDP Events log preserved ({count_before}→{count_after} entries) "
                 "but no Controller Level Reset event was logged after reset. "
-                "TP4146 recommends logging event type 0x03 on controller reset."
+                "TP4146 recommends logging event type 0x02 on controller reset."
             )
 
         return TestResult(
             TestStatus.PASS,
             f"FDP Events log preserved across Controller Reset "
-            f"({count_before}→{count_after} entries) and CLR event (0x03) was logged"
+            f"({count_before}→{count_after} entries) and CLR event (0x02) was logged"
         )
 
     # ── Helpers ───────────────────────────────────────────────────────────────
@@ -229,4 +232,8 @@ class TestFDPEventLogPersistReset(ResetTestBase, BaseTest):
             etype = e.get("event_type", e.get("etype", "?"))
             seq   = e.get("seq", e.get("sequence", "?"))
             ts    = e.get("timestamp", e.get("ts", ""))
-            log(f"  Event: seq={seq} type=0x{int(etype):02x} ts={ts}")
+            try:
+                type_str = f"0x{int(etype):02x}"
+            except (ValueError, TypeError):
+                type_str = str(etype)
+            log(f"  Event: seq={seq} type={type_str} ts={ts}")

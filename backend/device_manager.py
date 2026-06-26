@@ -16,6 +16,7 @@ and return realistic canned responses — nothing touches the kernel.
 import subprocess
 import json
 import glob
+import re
 import os
 import sys
 
@@ -80,7 +81,12 @@ class DeviceManager:
         return _DUMMY_DEVICE_LIST + real_devices
 
     def _discover_real_devices(self) -> list:
-        """Run 'nvme list -o json' and return a list of device dicts."""
+        """
+        Run 'nvme list -o json' and return one entry per controller device
+        (e.g. /dev/nvme0), grouping any namespace entries (nvme0n1, nvme0n2…)
+        under a 'namespaces' list so they are shown as informational sub-items
+        in the UI rather than separate selectable devices.
+        """
         try:
             result = subprocess.run(
                 ["nvme", "list", "-o", "json"],
@@ -88,32 +94,91 @@ class DeviceManager:
             )
             if result.returncode == 0:
                 data = json.loads(result.stdout)
-                devices = []
+                # Group by controller path (strip trailing nN)
+                controllers = {}
                 for dev in data.get("Devices", []):
-                    devices.append({
-                        "path":     dev.get("DevicePath", ""),
-                        "model":    dev.get("ModelNumber", "Unknown").strip(),
-                        "serial":   dev.get("SerialNumber", "").strip(),
-                        "firmware": dev.get("Firmware", "").strip(),
-                        "size_gb":  round(dev.get("PhysicalSize", 0) / 1e9, 1),
-                        "dummy":    False,
-                    })
-                return devices
+                    ns_path = dev.get("DevicePath", "")
+                    # Derive controller path: /dev/nvme0n1 -> /dev/nvme0
+                    ctrl = re.sub(r'n\d+$', '', ns_path)
+                    if ctrl not in controllers:
+                        controllers[ctrl] = {
+                            "path":       ctrl,
+                            "model":      dev.get("ModelNumber", "Unknown").strip(),
+                            "serial":     dev.get("SerialNumber", "").strip(),
+                            "firmware":   dev.get("Firmware", "").strip(),
+                            "size_gb":    round(dev.get("PhysicalSize", 0) / 1e9, 1),
+                            "dummy":      False,
+                            "namespaces": [],
+                        }
+                    # Parse namespace ID from path suffix
+                    m = re.search(r'n(\d+)$', ns_path)
+                    if m:
+                        controllers[ctrl]["namespaces"].append({
+                            "nsid":    int(m.group(1)),
+                            "path":    ns_path,
+                            "size_gb": round(dev.get("PhysicalSize", 0) / 1e9, 1),
+                        })
+                # Also detect namespace-less controllers not returned by nvme list
+                self._add_namespaceless_controllers(controllers)
+                return list(controllers.values())
         except Exception:
             pass
 
-        # Fallback: glob /dev/nvme*
+        # Fallback: glob /dev/nvme[0-9] controller devices directly
         devices = []
-        for path in sorted(glob.glob("/dev/nvme[0-9]")):
-            devices.append({
-                "path":     path,
-                "model":    "Unknown",
-                "serial":   "",
-                "firmware": "",
-                "size_gb":  0,
-                "dummy":    False,
-            })
-        return devices
+        controllers_fallback = {}
+        for path in sorted(glob.glob("/dev/nvme[0-9]*")):
+            if not re.search(r'n\d+$', path):   # controller only
+                controllers_fallback[path] = {
+                    "path":          path,
+                    "model":         "Unknown",
+                    "serial":        "",
+                    "firmware":      "",
+                    "size_gb":       0,
+                    "dummy":         False,
+                    "namespaces":    [],
+                    "no_namespaces": True,
+                }
+        return list(controllers_fallback.values())
+
+    def _add_namespaceless_controllers(self, controllers: dict):
+        """
+        Detect NVMe controllers that have no namespaces (not returned by
+        'nvme list') by globbing /dev/nvme* and adding any controller-only
+        devices not already in the supplied controllers dict.
+        Queries id-ctrl for model/serial info where available.
+        """
+        for path in sorted(glob.glob("/dev/nvme[0-9]*")):
+            if re.search(r'n\d+$', path):
+                continue                       # skip namespace devices
+            if path in controllers:
+                continue                       # already discovered via nvme list
+            # Try to get controller info via id-ctrl
+            model = "Unknown"
+            serial = ""
+            firmware = ""
+            try:
+                r = subprocess.run(
+                    ["nvme", "id-ctrl", path, "-o", "json"],
+                    capture_output=True, text=True, timeout=5
+                )
+                if r.returncode == 0:
+                    info = json.loads(r.stdout)
+                    model    = info.get("mn", "Unknown").strip()
+                    serial   = info.get("sn", "").strip()
+                    firmware = info.get("fr", "").strip()
+            except Exception:
+                pass
+            controllers[path] = {
+                "path":          path,
+                "model":         model,
+                "serial":        serial,
+                "firmware":      firmware,
+                "size_gb":       0,
+                "dummy":         False,
+                "namespaces":    [],
+                "no_namespaces": True,
+            }
 
     def get_fdp_info(self, device: str) -> dict:
         driver = self._make_driver(device)

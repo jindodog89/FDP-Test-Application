@@ -2,6 +2,7 @@
 Case: Disable FDP (Stats Clearing)
 """
 from tests.base_test import BaseTest, TestResult, TestStatus
+from tests.utils import attach_ns
 
 class TestAdminDisableFDPStatsClear(BaseTest):
     test_id = "admin_disable_fdp_stats_clear"
@@ -73,12 +74,17 @@ class TestAdminDisableFDPStatsClear(BaseTest):
 
     def _delete_all_ns(self, driver, log) -> list:
         """
-        Detach and delete every namespace on the device.
+        Save geometry of all namespaces then delete them all in one shot using
+        the broadcast NSID 0xFFFFFFFF. This avoids partial deletion if an error
+        interrupts a per-namespace loop.
         Returns a list of dicts with enough info to recreate each namespace:
           {"nsid": N, "nsze": N, "ncap": N, "flbas": N, "nphndls": N, "endg_id": N}
         Required by NVMe spec before enabling or disabling FDP via Set Features.
         """
-        list_res = driver.run_cmd(["list-ns", driver.device, "--all"], json_out=True)
+        import re as _re
+        ctrl_dev = _re.sub(r'n\d+$', '', driver.device)
+
+        list_res = driver.run_cmd(["list-ns", ctrl_dev, "--all"], json_out=True)
         raw_list = []
         if list_res["rc"] == 0:
             data = list_res.get("data", {})
@@ -87,11 +93,11 @@ class TestAdminDisableFDPStatsClear(BaseTest):
             elif isinstance(data, list):
                 raw_list = data
 
+        # Save geometry for each namespace so we can restore afterwards
         saved = []
         for raw in raw_list:
             nsid = int(raw["nsid"]) if isinstance(raw, dict) else int(raw)
-            # Collect NS geometry for later restoration
-            id_res = driver.run_cmd(["id-ns", driver.device, f"--namespace-id={nsid}"],
+            id_res = driver.run_cmd(["id-ns", ctrl_dev, f"--namespace-id={nsid}"],
                                     json_out=True)
             ns_info = {"nsid": nsid, "nsze": 0, "ncap": 0, "flbas": 0,
                        "nphndls": 0, "endg_id": 1}
@@ -103,28 +109,32 @@ class TestAdminDisableFDPStatsClear(BaseTest):
                     ns_info["flbas"] = int(d.get("flbas", 0)) & 0xF
             saved.append(ns_info)
 
-            # Detach then delete
-            driver.run_cmd(["detach-ns", driver.device,
-                            f"--namespace-id={nsid}", "--controllers=0x1"],
-                           json_out=False)
-            del_res = driver.run_cmd(["delete-ns", driver.device,
-                                      f"--namespace-id={nsid}"], json_out=False)
-            if del_res["rc"] == 0:
-                log(f"  ✓ Deleted NSID {nsid}")
-            else:
-                log(f"  ⚠ Delete NSID {nsid} failed: {del_res['stderr'].strip()}")
+        if not saved:
+            log("  No namespaces found to delete.")
+            return saved
+
+        # Delete all namespaces in one command using broadcast NSID 0xFFFFFFFF
+        del_res = driver.run_cmd(["delete-ns", ctrl_dev,
+                                  "--namespace-id=0xFFFFFFFF"], json_out=False)
+        if del_res["rc"] == 0:
+            log(f"  ✓ All {len(saved)} namespace(s) deleted (broadcast NSID)")
+        else:
+            log(f"  ⚠ Broadcast delete failed: {del_res['stderr'].strip()}")
 
         return saved
 
     def _restore_ns(self, driver, log, saved: list):
         """
         Re-create and re-attach each namespace from the list returned by
-        _delete_all_ns(). Best-effort — logs warnings on any failure.
+        _delete_all_ns(). Both commands require the controller device
+        (/dev/nvme0), not a namespace device path.
+        Best-effort — logs warnings on any failure.
         """
         import re as _re
+        ctrl_dev = _re.sub(r'n\d+$', '', driver.device)
         for ns in saved:
             args = [
-                "create-ns", driver.device,
+                "create-ns", ctrl_dev,
                 f"--nsze={ns['nsze']}",
                 f"--ncap={ns['ncap']}",
                 f"--flbas={ns['flbas']}",
@@ -141,9 +151,7 @@ class TestAdminDisableFDPStatsClear(BaseTest):
             out = cr["stdout"] + cr["stderr"]
             m = _re.search(r'nsid[:\s]+(\d+)', out, _re.IGNORECASE)
             new_nsid = int(m.group(1)) if m else ns["nsid"]
-            at = driver.run_cmd(["attach-ns", driver.device,
-                                  f"--namespace-id={new_nsid}", "--controllers=0x1"],
-                                json_out=False)
+            at = attach_ns(driver, ctrl_dev, new_nsid, log)
             if at["rc"] == 0:
                 log(f"  ✓ Restored NSID {new_nsid}")
             else:

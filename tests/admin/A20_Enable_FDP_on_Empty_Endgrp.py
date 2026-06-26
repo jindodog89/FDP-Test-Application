@@ -34,9 +34,10 @@ class TestAdminEnableFDPEmpty(BaseTest):
         )
         '''
         enable_result = driver.set_feature_passthru(
-            feature_id=0x1D, 
-            value=0x1, 
-            endgrp=endgrp
+            feature_id=0x1D,
+            cdw11=endgrp,
+            cdw12=0x1,
+            save=True
         )
 
         if enable_result["rc"] == 0:

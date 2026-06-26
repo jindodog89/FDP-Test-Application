@@ -6,46 +6,81 @@
 <title>NVMe FDP Test Tool</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
 <style>
-/* ── Design tokens ──────────────────────────────────────────────────────── */
+/* ── Bootstrap-inspired design tokens ──────────────────────────────────── */
 :root {
-  --bg:        #0f1117;
-  --surface:   #1a1d27;
-  --surface2:  #22263a;
-  --surface3:  #2a2f45;
-  --border:    #2e3350;
-  --accent:    #4f8ef7;
-  --accent2:   #7c3aed;
-  --green:     #22c55e;
-  --red:       #ef4444;
-  --yellow:    #f59e0b;
-  --text:      #e2e8f0;
-  --muted:     #64748b;
-
-  /* resizable panel widths (updated by JS) */
+  --bg:        #f8f9fa;
+  --surface:   #ffffff;
+  --surface2:  #f1f3f5;
+  --surface3:  #e9ecef;
+  --border:    #dee2e6;
+  --accent:    #0d6efd;
+  --accent2:   #6610f2;
+  --green:     #198754;
+  --red:       #dc3545;
+  --yellow:    #ffc107;
+  --text:      #212529;
+  --muted:     #6c757d;
   --lib-w:     300px;
   --log-w:     360px;
 }
+/* Dark mode overrides */
+body.dark-mode {
+  --bg:       #0f1117;
+  --surface:  #1a1d27;
+  --surface2: #22263a;
+  --surface3: #2a2f45;
+  --border:   #2e3350;
+  --accent:   #4f8ef7;
+  --green:    #22c55e;
+  --red:      #ef4444;
+  --yellow:   #f59e0b;
+  --text:     #e2e8f0;
+  --muted:    #64748b;
+}
+body.dark-mode .log-container        { background: #0a0c12; }
+body.dark-mode .ns-result-box        { background: #0a0c12; border-color: var(--border); }
+body.dark-mode .modal                { background: var(--surface); }
+body.dark-mode .modal-footer         { background: var(--surface2); }
+body.dark-mode .field-input          { background: var(--surface2); border-color: var(--border); color: var(--text); }
+body.dark-mode .device-select        { background: #343a40; border-color: #495057; color: #f8f9fa; }
+body.dark-mode .result-summary       { background: var(--surface); }
+body.dark-mode #fdp-diagram-wrapper  { background: #090b11; }
+body.dark-mode .fdp-detail-header    { background: var(--surface2); }
+body.dark-mode .fdp-cfg-card         { background: var(--surface2); }
+body.dark-mode .cat-Basic    { background: rgba(79,142,247,0.15);  color: #6ea8fe; }
+body.dark-mode .cat-IO       { background: rgba(124,58,237,0.18);  color: #c4b5fd; }
+body.dark-mode .cat-Reset    { background: rgba(239,68,68,0.15);   color: #f87171; }
+body.dark-mode .cat-Endurance{ background: rgba(34,197,94,0.15);   color: #86efac; }
+body.dark-mode .cat-Placement{ background: rgba(245,158,11,0.15);  color: #fcd34d; }
+body.dark-mode .cat-Reclaim  { background: rgba(34,197,94,0.15);   color: #86efac; }
+body.dark-mode .cat-Events   { background: rgba(245,158,11,0.15);  color: #fcd34d; }
+body.dark-mode .cat-General  { background: rgba(100,116,139,0.2);  color: #94a3b8; }
+body.dark-mode .cat-Admin    { background: rgba(6,182,212,0.15);   color: #67e8f9; }
+body.dark-mode .fdp-cfg-badge.ok  { background: rgba(34,197,94,0.15);  color: #86efac; }
+body.dark-mode .fdp-cfg-badge.err { background: rgba(239,68,68,0.15);  color: #f87171; }
+body.dark-mode .res-card.warn .num { color: var(--yellow); }
 
 /* ── Reset ──────────────────────────────────────────────────────────────── */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
   height: 100vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  user-select: none; /* prevent text selection during resize drags */
+  user-select: none;
 }
 body.resizing { cursor: col-resize !important; }
 body.resizing * { pointer-events: none !important; }
 
 /* ── Header ─────────────────────────────────────────────────────────────── */
 header {
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  padding: 12px 20px;
+  background: #212529;
+  border-bottom: 1px solid #343a40;
+  padding: 10px 20px;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -55,392 +90,270 @@ header {
 .logo { display: flex; align-items: center; gap: 10px; }
 .logo-icon {
   width: 32px; height: 32px;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
-  border-radius: 8px;
+  background: var(--accent);
+  border-radius: 6px;
   display: flex; align-items: center; justify-content: center;
   font-size: 16px;
 }
-.logo h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
-.logo span { font-size: 12px; color: var(--muted); }
-.header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.logo h1 { font-size: 17px; font-weight: 600; color: #f8f9fa; letter-spacing: -0.2px; }
+.logo span { font-size: 11px; color: #adb5bd; }
+.header-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .device-select {
-  background: var(--surface2); border: 1px solid var(--border);
-  color: var(--text); padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer;
+  background: #343a40; border: 1px solid #495057;
+  color: #f8f9fa; padding: 5px 10px; border-radius: 4px; font-size: 13px; cursor: pointer;
 }
+.device-select:focus { outline: none; border-color: var(--accent); }
 .btn {
-  padding: 7px 16px; border-radius: 6px; border: none;
-  font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+  padding: 6px 14px; border-radius: 4px; border: 1px solid transparent;
+  font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.1s;
+  line-height: 1.5;
 }
-.btn-primary { background: var(--accent); color: white; }
-.btn-primary:hover { background: #3d7ef5; }
-.btn-primary:disabled { background: var(--surface2); color: var(--muted); cursor: not-allowed; }
-.btn-danger { background: var(--red); color: white; }
-.btn-danger:hover { filter: brightness(1.15); }
-.btn-sm { padding: 4px 10px; font-size: 12px; }
-.btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--muted); }
-.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
-.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
-.status-dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:hover { background: #0b5ed7; border-color: #0a58ca; }
+.btn-primary:disabled { background: #6c757d; border-color: #6c757d; color: #fff; cursor: not-allowed; opacity: 0.65; }
+.btn-danger { background: var(--red); border-color: var(--red); color: #fff; }
+.btn-danger:hover { background: #bb2d3b; border-color: #b02a37; }
+.btn-sm { padding: 3px 8px; font-size: 12px; }
+.btn-ghost { background: transparent; border-color: #6c757d; color: #6c757d; }
+.btn-ghost:hover { background: #6c757d; color: #fff; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: #6c757d; }
+.status-dot.connected { background: var(--green); box-shadow: 0 0 0 2px rgba(25,135,84,0.25); }
 
 /* ── Three-pane layout ──────────────────────────────────────────────────── */
-.main {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-  min-height: 0;
-}
+.main { display: flex; flex: 1; overflow: hidden; min-height: 0; }
 
 /* ── Resize handles ─────────────────────────────────────────────────────── */
 .resize-handle {
-  width: 5px;
-  flex-shrink: 0;
-  background: var(--border);
-  cursor: col-resize;
-  position: relative;
-  transition: background 0.15s;
-  z-index: 5;
+  width: 5px; flex-shrink: 0;
+  background: var(--border); cursor: col-resize;
+  position: relative; transition: background 0.15s; z-index: 5;
 }
-.resize-handle:hover,
-.resize-handle.active { background: var(--accent); }
-.resize-handle::after {
-  content: '';
-  position: absolute;
-  inset: 0 -3px;   /* wider hit area */
-}
+.resize-handle:hover, .resize-handle.active { background: var(--accent); }
+.resize-handle::after { content: ''; position: absolute; inset: 0 -3px; }
 
 /* ── Panel base ─────────────────────────────────────────────────────────── */
-.panel {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-width: 200px;
-}
+.panel { display: flex; flex-direction: column; overflow: hidden; min-width: 200px; }
 #panel-library { width: var(--lib-w); flex-shrink: 0; border-right: none; }
 #panel-queue   { flex: 1; min-width: 240px; }
 #panel-log     { width: var(--log-w); flex-shrink: 0; border-left: 1px solid var(--border); }
-
 .panel-header {
-  padding: 10px 14px;
+  padding: 9px 14px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-shrink: 0;
-  gap: 8px;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0; gap: 8px;
 }
 .panel-title {
-  font-size: 11px; font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.8px;
-  color: var(--muted);
-  white-space: nowrap;
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.6px; color: var(--muted); white-space: nowrap;
 }
 .panel-body { flex: 1; overflow-y: auto; padding: 10px; min-height: 0; }
 .panel-body::-webkit-scrollbar { width: 4px; }
 .panel-body::-webkit-scrollbar-track { background: transparent; }
-.panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.panel-body::-webkit-scrollbar-thumb { background: #ced4da; border-radius: 4px; }
 
-/* ── LEFT PANEL — search + category tabs ───────────────────────────────── */
+/* ── Left panel search + tabs ───────────────────────────────────────────── */
 .lib-search-wrap {
-  padding: 8px 10px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
+  padding: 8px 10px; background: var(--surface);
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
 }
 .lib-search {
-  width: 100%;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text);
-  padding: 6px 10px 6px 30px;
-  font-size: 12px;
-  outline: none;
-  transition: border-color 0.15s;
+  width: 100%; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 4px; color: var(--text); padding: 5px 10px 5px 28px;
+  font-size: 12px; outline: none; transition: border-color 0.15s;
 }
-.lib-search:focus { border-color: var(--accent); }
+.lib-search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(13,110,253,0.15); }
 .lib-search-icon {
-  position: absolute;
-  left: 18px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--muted);
-  font-size: 13px;
-  pointer-events: none;
+  position: absolute; left: 18px; top: 50%;
+  transform: translateY(-50%); color: var(--muted);
+  font-size: 12px; pointer-events: none;
 }
 .lib-search-container { position: relative; }
-
-/* Category tab bar */
 .cat-tabs {
-  display: flex;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-  overflow-x: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
+  display: flex; background: var(--surface);
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+  overflow-x: auto; scrollbar-width: thin; scrollbar-color: #ced4da transparent;
 }
 .cat-tabs::-webkit-scrollbar { height: 3px; }
-.cat-tabs::-webkit-scrollbar-track { background: transparent; }
-.cat-tabs::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-.cat-tabs::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+.cat-tabs::-webkit-scrollbar-thumb { background: #ced4da; border-radius: 2px; }
 .cat-tab {
-  padding: 8px 12px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--muted);
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  white-space: nowrap;
-  transition: all 0.15s;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex-shrink: 0;
-  user-select: none;
+  padding: 7px 12px; font-size: 12px; font-weight: 500;
+  color: var(--muted); cursor: pointer;
+  border-bottom: 2px solid transparent; white-space: nowrap;
+  transition: color 0.1s, border-color 0.1s;
+  display: flex; align-items: center; gap: 4px; flex-shrink: 0; user-select: none;
 }
-.cat-tab:hover { color: var(--text); }
+.cat-tab:hover { color: var(--text); background: var(--surface2); }
 .cat-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 .cat-tab .tab-count {
-  background: var(--surface2);
-  border-radius: 10px;
-  padding: 1px 5px;
-  font-size: 10px;
-  color: var(--muted);
-  min-width: 18px;
-  text-align: center;
+  background: var(--surface3); border-radius: 10px;
+  padding: 1px 5px; font-size: 10px; color: var(--muted);
+  min-width: 18px; text-align: center;
 }
-.cat-tab.active .tab-count { background: rgba(79,142,247,0.2); color: var(--accent); }
-
-/* Search results strip */
+.cat-tab.active .tab-count { background: rgba(13,110,253,0.12); color: var(--accent); }
 .search-results-label {
-  font-size: 10px;
-  color: var(--muted);
-  padding: 6px 4px 2px;
-  font-style: italic;
-  display: none;
+  font-size: 11px; color: var(--muted); padding: 5px 4px 2px;
+  font-style: italic; display: none;
 }
 
-/* ── Test cards in library ──────────────────────────────────────────────── */
+/* ── Test cards ─────────────────────────────────────────────────────────── */
 .test-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 9px 11px;
-  margin-bottom: 6px;
-  cursor: grab;
-  transition: border-color 0.15s, background 0.15s;
-  user-select: none;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; padding: 9px 11px; margin-bottom: 6px;
+  cursor: grab; transition: border-color 0.1s, box-shadow 0.1s; user-select: none;
 }
-.test-card:hover { border-color: var(--accent); background: var(--surface2); }
-.test-card.dragging { opacity: 0.4; cursor: grabbing; }
+.test-card:hover { border-color: var(--accent); box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+.test-card.dragging { opacity: 0.5; cursor: grabbing; }
 .test-card-header { display: flex; align-items: flex-start; gap: 8px; }
-.test-card-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.test-card-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
 .test-card-info { flex: 1; min-width: 0; }
-.test-card-name {
-  font-size: 12px; font-weight: 600;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
+.test-card-name { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .test-card-desc {
-  font-size: 11px; color: var(--muted);
-  margin-top: 2px; line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.4;
+  display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden;
 }
 .test-card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
-
-/* Configurable-params panel */
 .test-card-params-toggle {
   display: flex; align-items: center; gap: 5px;
   margin-top: 7px; padding-top: 6px;
   border-top: 1px solid var(--border);
   font-size: 10px; font-weight: 600; color: var(--muted);
-  cursor: pointer; user-select: none;
-  transition: color 0.15s;
+  cursor: pointer; user-select: none; transition: color 0.1s;
 }
 .test-card-params-toggle:hover { color: var(--accent); }
-.test-card-params-toggle .toggle-arrow {
-  font-size: 9px; transition: transform 0.2s; display: inline-block;
-}
+.test-card-params-toggle .toggle-arrow { font-size: 9px; transition: transform 0.2s; display: inline-block; }
 .test-card-params-toggle.open .toggle-arrow { transform: rotate(90deg); }
-.test-card-params-body {
-  display: none; margin-top: 8px;
-}
+.test-card-params-body { display: none; margin-top: 8px; }
 .test-card-params-body.open { display: block; }
-.params-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
-}
+.params-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .param-field { display: flex; flex-direction: column; gap: 3px; }
-.param-field label {
-  font-size: 10px; color: var(--muted); font-weight: 600;
-}
+.param-field label { font-size: 10px; color: var(--muted); font-weight: 600; }
 .param-field input {
   background: var(--surface2); border: 1px solid var(--border);
-  border-radius: 5px; color: var(--text);
-  font-size: 11px; padding: 4px 7px;
-  outline: none; transition: border-color 0.15s;
-  width: 100%;
+  border-radius: 4px; color: var(--text); font-size: 11px; padding: 4px 7px;
+  outline: none; transition: border-color 0.1s; width: 100%;
 }
-.param-field input:focus { border-color: var(--accent); }
+.param-field input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(13,110,253,0.15); }
 .tag {
-  font-size: 10px; padding: 1px 5px; border-radius: 8px;
+  font-size: 10px; padding: 1px 5px; border-radius: 4px;
   background: var(--surface2); color: var(--muted); border: 1px solid var(--border);
 }
 
 /* Category colour pills */
-.cat-badge { font-size: 10px; padding: 2px 6px; border-radius: 8px; font-weight: 600; white-space: nowrap; }
-.cat-Basic    { background: rgba(79,142,247,0.15);  color: var(--accent);  }
-.cat-IO       { background: rgba(124,58,237,0.18);  color: #a78bfa; }
-.cat-Reset    { background: rgba(239,68,68,0.15);   color: #f87171; }
-.cat-Endurance{ background: rgba(34,197,94,0.15);   color: var(--green); }
-.cat-Placement{ background: rgba(245,158,11,0.15);  color: var(--yellow); }
-.cat-Reclaim  { background: rgba(34,197,94,0.15);   color: var(--green); }
-.cat-Events   { background: rgba(245,158,11,0.15);  color: var(--yellow); }
-.cat-General  { background: rgba(100,116,139,0.2);  color: var(--muted); }
+.cat-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; white-space: nowrap; }
+.cat-Basic     { background: #cfe2ff; color: #084298; }
+.cat-IO        { background: #e2d9f3; color: #432874; }
+.cat-Reset     { background: #f8d7da; color: #842029; }
+.cat-Endurance { background: #d1e7dd; color: #0a3622; }
+.cat-Placement { background: #fff3cd; color: #664d03; }
+.cat-Reclaim   { background: #d1e7dd; color: #0a3622; }
+.cat-Events    { background: #fff3cd; color: #664d03; }
+.cat-General   { background: #e9ecef; color: #495057; }
+.cat-Admin     { background: #cff4fc; color: #055160; }
 
-/* Group header (for "All" tab view) */
+/* Group header */
 .lib-group-header {
-  font-size: 10px; font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.9px;
-  color: var(--muted);
-  padding: 10px 4px 5px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 6px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.8px; color: var(--muted);
+  padding: 10px 4px 5px; border-bottom: 1px solid var(--border);
+  margin-bottom: 6px; display: flex; align-items: center; gap: 6px;
 }
 .lib-group-header:first-child { padding-top: 2px; }
+.lib-empty { text-align: center; color: var(--muted); font-size: 12px; padding: 30px 16px; line-height: 1.8; }
 
-/* Empty state */
-.lib-empty {
-  text-align: center;
-  color: var(--muted);
-  font-size: 12px;
-  padding: 30px 16px;
-  line-height: 1.8;
-}
-
-/* ── CENTER PANEL — execution queue ─────────────────────────────────────── */
+/* ── Center panel — queue ────────────────────────────────────────────────── */
 .exec-zone { display: flex; flex-direction: column; }
 .drop-zone {
-  flex: 1;
-  overflow-y: auto;
-  min-height: 100px;
-  border-radius: 8px;
-  border: 2px dashed var(--border);
-  padding: 8px;
-  transition: border-color 0.2s, background 0.2s;
+  flex: 1; overflow-y: auto; min-height: 100px;
+  border-radius: 6px; border: 2px dashed #ced4da;
+  padding: 8px; transition: border-color 0.2s, background 0.2s;
 }
-.drop-zone.drag-active { border-color: var(--accent); background: rgba(79,142,247,0.05); }
+.drop-zone.drag-active { border-color: var(--accent); background: rgba(13,110,253,0.04); }
 .drop-zone::-webkit-scrollbar { width: 4px; }
-.drop-zone::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.drop-zone::-webkit-scrollbar-thumb { background: #ced4da; border-radius: 4px; }
 .drop-zone-empty {
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  height: 100%; color: var(--muted);
-  gap: 8px; padding: 30px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 100%; color: var(--muted); gap: 8px; padding: 30px; text-align: center;
 }
 .drop-zone-empty svg { opacity: 0.3; }
-
 .exec-item {
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: 8px; padding: 8px 10px;
-  margin-bottom: 5px;
-  display: flex; flex-direction: column;
-  cursor: grab; transition: all 0.12s;
+  border-radius: 6px; padding: 8px 10px; margin-bottom: 5px;
+  display: flex; flex-direction: column; cursor: grab; transition: all 0.1s;
 }
-.exec-item:hover { background: var(--surface2); }
-.exec-item.running { border-color: var(--accent); animation: pulse-border 1.5s infinite; }
-.exec-item.status-pass  { border-color: var(--green); }
-.exec-item.status-fail  { border-color: var(--red); }
-.exec-item.status-warn  { border-color: var(--yellow); }
-.exec-item.status-error { border-color: var(--red); }
-.exec-item.status-skip  { border-color: var(--muted); opacity: 0.7; }
+.exec-item:hover { background: var(--surface2); box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+.exec-item.running { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(13,110,253,0.2); animation: pulse-border 1.5s infinite; }
+.exec-item.status-pass  { border-color: var(--green); border-left: 3px solid var(--green); }
+.exec-item.status-fail  { border-color: var(--red);   border-left: 3px solid var(--red); }
+.exec-item.status-warn  { border-color: var(--yellow); border-left: 3px solid var(--yellow); }
+.exec-item.status-error { border-color: var(--red);   border-left: 3px solid var(--red); }
+.exec-item.status-skip  { border-color: #adb5bd; opacity: 0.7; }
 .exec-item.drop-above { border-top: 2px solid var(--accent); margin-top: -1px; }
 .exec-item.drop-below { border-bottom: 2px solid var(--accent); margin-bottom: -1px; }
 @keyframes pulse-border {
-  0%,100% { box-shadow: 0 0 0 0 rgba(79,142,247,0); }
-  50%      { box-shadow: 0 0 0 3px rgba(79,142,247,0.2); }
+  0%,100% { box-shadow: 0 0 0 0 rgba(13,110,253,0); }
+  50%      { box-shadow: 0 0 0 3px rgba(13,110,253,0.2); }
 }
 .exec-handle { color: var(--muted); font-size: 14px; cursor: grab; flex-shrink: 0; }
-.exec-icon { font-size: 14px; flex-shrink: 0; }
-.exec-name { flex: 1; font-size: 12px; font-weight: 500; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.exec-icon   { font-size: 14px; flex-shrink: 0; }
+.exec-name   { flex: 1; font-size: 12px; font-weight: 500; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .exec-status {
   width: 20px; height: 20px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-size: 11px; flex-shrink: 0;
 }
-.exec-status.idle       { background: var(--surface2); }
-.exec-status.running    { background: var(--accent); animation: spin 1s linear infinite; }
-.exec-status.status-pass  { background: var(--green); }
-.exec-status.status-fail  { background: var(--red); }
-.exec-status.status-warn  { background: var(--yellow); }
-.exec-status.status-error { background: var(--red); }
-.exec-status.status-skip  { background: var(--muted); }
+.exec-status.idle         { background: var(--surface3); }
+.exec-status.running      { background: var(--accent); color: #fff; animation: spin 1s linear infinite; }
+.exec-status.status-pass  { background: var(--green);  color: #fff; }
+.exec-status.status-fail  { background: var(--red);    color: #fff; }
+.exec-status.status-warn  { background: var(--yellow); color: #212529; }
+.exec-status.status-error { background: var(--red);    color: #fff; }
+.exec-status.status-skip  { background: #adb5bd;       color: #fff; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .exec-remove {
   background: none; border: none; color: var(--muted);
   cursor: pointer; padding: 2px 5px; border-radius: 4px; font-size: 15px; flex-shrink: 0;
 }
-.exec-remove:hover { color: var(--red); background: rgba(239,68,68,0.1); }
+.exec-remove:hover { color: var(--red); background: #f8d7da; }
 .exec-item-inner { display: flex; align-items: center; gap: 8px; width: 100%; }
 .exec-params-toggle {
   display: flex; align-items: center; gap: 5px;
-  margin-top: 6px; padding-top: 6px;
-  border-top: 1px solid var(--border);
+  margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border);
   font-size: 10px; font-weight: 600; color: var(--muted);
-  cursor: pointer; user-select: none;
-  transition: color 0.15s;
+  cursor: pointer; user-select: none; transition: color 0.1s;
 }
 .exec-params-toggle:hover { color: var(--accent); }
 .exec-params-toggle .toggle-arrow { font-size: 9px; transition: transform 0.2s; display: inline-block; }
 .exec-params-toggle.open .toggle-arrow { transform: rotate(90deg); }
 .exec-params-body { display: none; margin-top: 8px; }
 .exec-params-body.open { display: block; }
-
 .exec-footer {
-  padding: 10px 12px;
-  border-top: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex-shrink: 0;
+  padding: 10px 12px; border-top: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 8px; flex-shrink: 0;
 }
-.run-options {
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-}
-.run-opt-label {
-  font-size: 11px; color: var(--muted); white-space: nowrap;
-}
+.run-options { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.run-opt-label { font-size: 11px; color: var(--muted); white-space: nowrap; }
 .run-opt-input {
-  width: 54px;
-  background: var(--surface2); border: 1px solid var(--border);
-  border-radius: 5px; color: var(--text);
-  font-size: 11px; padding: 3px 7px;
-  outline: none; transition: border-color 0.15s;
+  width: 54px; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 4px; color: var(--text); font-size: 11px; padding: 3px 7px;
+  outline: none; transition: border-color 0.1s;
 }
 .run-opt-input:focus { border-color: var(--accent); }
-.run-opt-toggle {
-  display: flex; align-items: center; gap: 5px;
-  cursor: pointer; user-select: none;
-}
+.run-opt-toggle { display: flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; }
 .run-opt-toggle input[type=checkbox] { display: none; }
 .toggle-pill {
   width: 30px; height: 16px; border-radius: 8px;
-  background: var(--surface3); border: 1px solid var(--border);
-  position: relative; transition: background 0.2s;
-  flex-shrink: 0;
+  background: #dee2e6; border: 1px solid #ced4da;
+  position: relative; transition: background 0.2s; flex-shrink: 0;
 }
 .toggle-pill::after {
   content: ''; position: absolute;
   width: 10px; height: 10px; border-radius: 50%;
-  background: var(--muted); top: 2px; left: 2px;
+  background: #6c757d; top: 2px; left: 2px;
   transition: transform 0.2s, background 0.2s;
 }
-.run-opt-toggle input:checked + .toggle-pill { background: rgba(239,68,68,0.25); border-color: var(--red); }
+.run-opt-toggle input:checked + .toggle-pill { background: #f8d7da; border-color: #f5c2c7; }
 .run-opt-toggle input:checked + .toggle-pill::after { transform: translateX(14px); background: var(--red); }
 .exec-summary { display: flex; gap: 12px; font-size: 11px; align-items: center; }
 .sum-item { display: flex; align-items: center; gap: 4px; color: var(--muted); }
@@ -449,221 +362,283 @@ header {
 .sum-dot.fail  { background: var(--red); }
 .sum-dot.warn  { background: var(--yellow); }
 
-/* ── RIGHT PANEL — output log ───────────────────────────────────────────── */
+/* ── Right panel — log ──────────────────────────────────────────────────── */
 .log-container {
-  flex: 1;
-  overflow-y: auto;
-  font-family: 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
-  font-size: 11.5px;
-  line-height: 1.65;
-  padding: 10px;
-  background: #0a0c12;
-  min-height: 0;
+  flex: 1; overflow-y: auto;
+  font-family: 'SFMono-Regular', 'Cascadia Code', 'Fira Code', Consolas, monospace;
+  font-size: 11.5px; line-height: 1.65; padding: 10px;
+  background: #212529; min-height: 0;
 }
 .log-container::-webkit-scrollbar { width: 4px; }
-.log-container::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.log-container::-webkit-scrollbar-thumb { background: #495057; border-radius: 4px; }
 .log-line { margin: 1px 0; }
-.log-line .ts  { color: #3d4a6b; margin-right: 6px; }
-.log-line.info    .msg { color: #94a3b8; }
-.log-line.success .msg { color: var(--green); }
-.log-line.error   .msg { color: var(--red); }
-.log-line.warn    .msg { color: var(--yellow); }
-.log-line.accent  .msg { color: var(--accent); font-weight: 600; }
-.log-line.heading .msg { color: #c4b5fd; font-weight: 700; }
+.log-line .ts  { color: #495057; margin-right: 6px; }
+.log-line.info    .msg { color: #adb5bd; }
+.log-line.success .msg { color: #75b798; }
+.log-line.error   .msg { color: #ea868f; }
+.log-line.warn    .msg { color: #ffda6a; }
+.log-line.accent  .msg { color: #6ea8fe; font-weight: 600; }
+.log-line.heading .msg { color: #d2b4ff; font-weight: 700; }
 
 .result-summary {
-  padding: 12px;
-  border-top: 1px solid var(--border);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  flex-shrink: 0;
+  padding: 10px 12px; border-top: 1px solid var(--border);
+  display: flex; flex-wrap: wrap; gap: 8px; flex-shrink: 0;
+  background: var(--surface);
 }
 .res-card {
   flex: 1; min-width: 55px;
-  background: var(--surface); border: 1px solid var(--border);
+  background: var(--surface2); border: 1px solid var(--border);
   border-radius: 6px; padding: 8px 10px; text-align: center;
 }
-.res-card .num { font-size: 22px; font-weight: 800; line-height: 1; }
+.res-card .num { font-size: 22px; font-weight: 700; line-height: 1; }
 .res-card .lbl { font-size: 10px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
 .res-card.pass  .num { color: var(--green); }
 .res-card.fail  .num { color: var(--red); }
-.res-card.warn  .num { color: var(--yellow); }
+.res-card.warn  .num { color: #856404; }
 .res-card.total .num { color: var(--text); }
 
-/* ── Device Control bar ─────────────────────────────────────────────────── */
 /* ── View tabs ───────────────────────────────────────────────────────────── */
 .view-tabs {
-  display: flex;
-  background: var(--surface);
-  border-bottom: 2px solid var(--border);
-  flex-shrink: 0;
-  padding: 0 20px;
-  gap: 2px;
+  display: flex; background: var(--surface);
+  border-bottom: 2px solid var(--border); flex-shrink: 0; padding: 0 20px; gap: 2px;
 }
 .view-tab {
-  padding: 10px 20px;
-  font-size: 13px; font-weight: 600;
-  color: var(--muted);
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
-  transition: color 0.15s, border-color 0.15s;
+  padding: 10px 18px; font-size: 13px; font-weight: 500;
+  color: var(--muted); cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -2px;
+  transition: color 0.1s, border-color 0.1s;
   user-select: none; white-space: nowrap;
 }
 .view-tab:hover { color: var(--text); }
 .view-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
 /* ── Device Control view ─────────────────────────────────────────────────── */
-#view-device {
-  display: none;
-  flex: 1; overflow-y: auto;
-  padding: 28px 32px;
-  flex-direction: column; gap: 28px;
-}
+#view-device { display: none; flex: 1; overflow-y: auto; padding: 24px 28px; flex-direction: column; gap: 24px; }
 #view-device.active { display: flex; }
 .dc-section-title {
   font-size: 11px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: 0.8px; color: var(--muted);
-  margin-bottom: 12px; padding-bottom: 6px;
-  border-bottom: 1px solid var(--border);
+  letter-spacing: 0.7px; color: var(--muted);
+  margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border);
 }
-.dc-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px;
-}
+.dc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
 .dc-card {
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: 10px; padding: 18px 20px;
-  display: flex; flex-direction: column; gap: 7px;
-  cursor: pointer; transition: border-color 0.15s, background 0.15s;
+  border-radius: 8px; padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 6px;
+  cursor: pointer; transition: border-color 0.1s, box-shadow 0.1s;
 }
-.dc-card:hover        { border-color: var(--accent); background: var(--surface2); }
-.dc-card.danger:hover { border-color: var(--red);    background: var(--surface2); }
-.dc-card.create:hover { border-color: var(--green);  background: var(--surface2); }
-.dc-card-icon  { font-size: 24px; }
+.dc-card:hover        { border-color: var(--accent); box-shadow: 0 2px 8px rgba(13,110,253,0.1); }
+.dc-card.danger:hover { border-color: var(--red);    box-shadow: 0 2px 8px rgba(220,53,69,0.1); }
+.dc-card.create:hover { border-color: var(--green);  box-shadow: 0 2px 8px rgba(25,135,84,0.1); }
+.dc-card-icon  { font-size: 22px; }
 .dc-card-title { font-size: 13px; font-weight: 600; }
 .dc-card-desc  { font-size: 11px; color: var(--muted); line-height: 1.5; }
 
+/* ── LBA Map ──────────────────────────────────────────────────────────────── */
+#lba-major-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 3px;
+  padding: 12px;
+  background: #0a0c12;
+  border-radius: 6px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.lba-major-cell {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 1px;
+  background: #1a1d27;
+  border-radius: 2px;
+  padding: 2px;
+  aspect-ratio: 1;
+}
+.lba-minor-cell {
+  border-radius: 1px;
+  transition: transform 0.1s;
+  cursor: default;
+  aspect-ratio: 1;
+}
+.lba-minor-cell:hover { transform: scale(1.4); z-index: 10; position: relative; }
+.lba-major-label {
+  font-size: 9px; color: #6c757d; text-align: center; margin-top: 2px;
+}
+#lba-map-legend {
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  font-size: 10px; color: var(--muted); padding: 8px 12px;
+}
+.lba-legend-swatch {
+  width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0;
+}
+#lba-map-status {
+  font-size: 11px; color: var(--muted); padding: 4px 12px; min-height: 20px;
+}
 
 /* ── Modals ─────────────────────────────────────────────────────────────── */
 .modal-overlay {
   display: none; position: fixed; inset: 0;
-  background: rgba(0,0,0,0.72);
-  backdrop-filter: blur(4px);
-  z-index: 100;
-  align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.5);
+  z-index: 100; align-items: center; justify-content: center;
 }
 .modal-overlay.open { display: flex; }
 .modal {
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: 12px; width: 480px; max-width: 95vw; max-height: 90vh;
-  overflow-y: auto;
-  box-shadow: 0 24px 64px rgba(0,0,0,0.6);
-  animation: modal-in 0.18s ease;
+  border-radius: 8px; width: 480px; max-width: 95vw; max-height: 90vh;
+  overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  animation: modal-in 0.15s ease;
 }
 @keyframes modal-in {
-  from { opacity: 0; transform: translateY(-10px) scale(0.97); }
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
   to   { opacity: 1; transform: none; }
 }
 .modal-header {
-  padding: 16px 20px 13px;
-  border-bottom: 1px solid var(--border);
+  padding: 14px 18px 12px; border-bottom: 1px solid var(--border);
   display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
 }
-.modal-title    { font-size: 15px; font-weight: 700; }
+.modal-title    { font-size: 15px; font-weight: 600; }
 .modal-subtitle { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .modal-close {
   background: none; border: none; color: var(--muted);
   font-size: 20px; cursor: pointer; line-height: 1; padding: 2px 4px; border-radius: 4px;
 }
 .modal-close:hover { color: var(--text); background: var(--surface2); }
-.modal-body   { padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
-.modal-footer { padding: 13px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+.modal-body   { padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+.modal-footer { padding: 12px 18px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; background: var(--surface2); border-radius: 0 0 8px 8px; }
 
 /* Form */
-.field-group  { display: flex; flex-direction: column; gap: 5px; }
+.field-group  { display: flex; flex-direction: column; gap: 4px; }
 .field-row    { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.field-label  { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
-.field-hint   { font-size: 10px; color: var(--muted); opacity: 0.7; margin-top: 2px; }
+.field-label  { font-size: 11px; font-weight: 600; color: #495057; text-transform: uppercase; letter-spacing: 0.4px; }
+.field-hint   { font-size: 10px; color: var(--muted); opacity: 0.85; margin-top: 2px; }
 .field-input  {
-  background: var(--surface2); border: 1px solid var(--border);
-  border-radius: 6px; color: var(--text); padding: 7px 10px;
-  font-size: 13px; width: 100%; transition: border-color 0.15s; outline: none;
+  background: var(--surface); border: 1px solid #ced4da;
+  border-radius: 4px; color: var(--text); padding: 6px 10px;
+  font-size: 13px; width: 100%; transition: border-color 0.1s, box-shadow 0.1s; outline: none;
 }
-.field-input:focus { border-color: var(--accent); }
-.field-input.error { border-color: var(--red); }
+.field-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(13,110,253,0.15); }
+.field-input.error { border-color: var(--red); box-shadow: 0 0 0 3px rgba(220,53,69,0.15); }
 select.field-input { cursor: pointer; }
 .section-divider {
   font-size: 10px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: 0.8px; color: var(--accent);
-  padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 2px;
+  letter-spacing: 0.7px; color: var(--accent);
+  padding-bottom: 5px; border-bottom: 1px solid var(--border); margin-bottom: 2px;
 }
 .ns-result-box {
-  background: #0a0c12; border: 1px solid var(--border); border-radius: 6px;
-  padding: 10px 12px;
-  font-family: 'Cascadia Code','Fira Code','Courier New',monospace;
-  font-size: 11px; line-height: 1.7;
-  max-height: 260px; overflow-y: auto;
+  background: #212529; border: 1px solid #343a40; border-radius: 5px;
+  padding: 10px 12px; color: #adb5bd;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 11px; line-height: 1.7; max-height: 260px; overflow-y: auto;
   white-space: pre-wrap; word-break: break-all;
 }
-.ns-result-box .ok  { color: var(--green); }
-.ns-result-box .err { color: var(--red); }
-.ns-result-box .hd  { color: var(--accent); font-weight: 700; }
-/* ── FDP Config modal ───────────────────────────────────────────────────── */
-.fdp-cfg-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+.ns-result-box .ok  { color: #75b798; }
+.ns-result-box .err { color: #ea868f; }
+.ns-result-box .hd  { color: #6ea8fe; font-weight: 700; }
+
+/* ── FDP Config modal — diagram layout ──────────────────────────────────── */
+.fdp-cfg-layout { display: flex; gap: 0; height: 100%; min-height: 0; overflow: hidden; }
+.fdp-cfg-diagram-pane { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; transition: flex 0.25s ease; }
+#fdp-diagram-wrapper {
+  flex: 1; overflow-y: auto; overflow-x: hidden;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: #f8f9fa; padding: 12px;
 }
-.fdp-cfg-card {
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 12px;
+.fdp-diagram-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); margin-bottom: 2px; }
+
+/* Detail panel */
+#fdp-detail-pane { width: 0; flex-shrink: 0; overflow: hidden; display: flex; flex-direction: column; transition: width 0.25s ease; border-left: 0px solid var(--border); }
+#fdp-detail-pane.open { width: 280px; border-left-width: 1px; margin-left: 12px; }
+#fdp-detail-inner { width: 280px; display: flex; flex-direction: column; gap: 0; overflow-y: auto; height: 100%; }
+.fdp-detail-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px 6px; border-bottom: 1px solid var(--border); flex-shrink: 0; background: var(--surface2); }
+.fdp-detail-title { font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; }
+.fdp-detail-close { background: none; border: none; color: var(--muted); font-size: 16px; cursor: pointer; line-height: 1; padding: 0 2px; }
+.fdp-detail-close:hover { color: var(--text); }
+
+/* FDP toggle */
+/* ── Cheatsheet styles ──────────────────────────────────────────────────── */
+.cs-section { margin: 20px 0 8px; }
+.cs-section-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.8px; color: var(--accent);
+  padding: 6px 0 6px; border-bottom: 2px solid var(--accent);
+  margin-bottom: 10px;
 }
+.cs-group {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 6px; margin-bottom: 8px; overflow: hidden;
+}
+.cs-group-title {
+  font-size: 11px; font-weight: 600; color: var(--text);
+  padding: 7px 12px 5px; background: var(--surface3);
+  border-bottom: 1px solid var(--border);
+}
+.cs-cmd-block { padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; }
+.cs-cmd-row { display: flex; flex-direction: column; gap: 2px; }
+.cs-cmd-label {
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.6px; color: var(--muted);
+}
+.cs-cmd {
+  font-family: 'Cascadia Code','Fira Code',Consolas,monospace;
+  font-size: 11.5px; color: var(--text);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 4px; padding: 5px 10px;
+  white-space: pre-wrap; word-break: break-all; line-height: 1.5;
+  user-select: text;
+}
+.cs-cmd .cs-kw  { color: #4f8ef7; font-weight: 600; }   /* nvme keyword */
+.cs-cmd .cs-sub { color: #a78bfa; }                       /* subcommand */
+.cs-cmd .cs-dev { color: #34d399; }                       /* device */
+.cs-cmd .cs-flag{ color: #fbbf24; }                       /* --flag */
+.cs-cmd .cs-val { color: #f87171; }                       /* value */
+.cs-params {
+  display: grid; grid-template-columns: max-content 1fr;
+  gap: 2px 12px; font-size: 10px; margin-top: 4px; padding: 0 4px;
+}
+.cs-param-key   { color: #fbbf24; font-family: monospace; white-space: nowrap; }
+.cs-param-desc  { color: var(--muted); }
+.cs-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+.fdp-toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0 4px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
+.fdp-toggle-label { font-size: 11px; font-weight: 600; color: var(--text); }
+.fdp-toggle-track { width: 42px; height: 22px; border-radius: 11px; background: #dee2e6; border: 1px solid #ced4da; position: relative; cursor: pointer; transition: background 0.2s; flex-shrink: 0; }
+.fdp-toggle-track.on  { background: var(--green); border-color: var(--green); }
+.fdp-toggle-track.unknown { opacity: 0.55; cursor: pointer; }
+.fdp-toggle-thumb { width: 16px; height: 16px; border-radius: 50%; background: #fff; position: absolute; top: 2px; left: 2px; transition: left 0.2s; pointer-events: none; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+.fdp-toggle-track.on .fdp-toggle-thumb { left: 22px; }
+
+.fdp-detail-body { flex: 1; overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 10px; }
+.fdp-detail-section { display: flex; flex-direction: column; gap: 0; }
+.fdp-detail-section-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted); padding: 4px 0 3px; border-bottom: 1px solid var(--border); margin-bottom: 3px; }
+.fdp-detail-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 10.5px; padding: 2px 0; border-bottom: 1px solid #e9ecef; }
+.fdp-detail-row:last-child { border-bottom: none; }
+.fdp-detail-key { color: var(--muted); font-size: 10px; }
+.fdp-detail-val { color: var(--text); font-family: 'SFMono-Regular', Consolas, monospace; font-size: 10px; text-align: right; word-break: break-all; }
+.fdp-detail-val.ok   { color: var(--green); font-weight: 600; }
+.fdp-detail-val.warn { color: #856404; font-weight: 600; }
+.fdp-detail-val.err  { color: var(--red);   font-weight: 600; }
+
+/* ── FDP Config modal (grid cards) ───────────────────────────────────────── */
+.fdp-cfg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.fdp-cfg-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; }
 .fdp-cfg-card.full { grid-column: 1 / -1; }
-.fdp-cfg-card-title {
-  font-size: 10px; font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.7px;
-  color: var(--accent); margin-bottom: 6px;
-}
-.fdp-cfg-row {
-  display: flex; justify-content: space-between; align-items: baseline;
-  font-size: 11px; padding: 2px 0;
-  border-bottom: 1px solid rgba(46,51,80,0.5);
-}
+.fdp-cfg-card-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #0a58ca; margin-bottom: 6px; }
+.fdp-cfg-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 11px; padding: 2px 0; border-bottom: 1px solid #e9ecef; }
 .fdp-cfg-row:last-child { border-bottom: none; }
-.fdp-cfg-key   { color: var(--muted); }
-.fdp-cfg-val   { color: var(--text);  font-family: 'Cascadia Code','Fira Code',monospace; font-size: 10.5px; }
-.fdp-cfg-val.ok  { color: var(--green); }
-.fdp-cfg-val.err { color: var(--red);   }
-.fdp-cfg-val.warn{ color: var(--yellow);}
-.fdp-cfg-cmd-row {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 11px; padding: 3px 0;
-  border-bottom: 1px solid rgba(46,51,80,0.4);
-}
+.fdp-cfg-key { color: var(--muted); }
+.fdp-cfg-val { color: var(--text); font-family: 'SFMono-Regular', Consolas, monospace; font-size: 10.5px; }
+.fdp-cfg-val.ok   { color: var(--green); }
+.fdp-cfg-val.err  { color: var(--red); }
+.fdp-cfg-val.warn { color: #856404; }
+.fdp-cfg-cmd-row { display: flex; align-items: center; gap: 8px; font-size: 11px; padding: 3px 0; border-bottom: 1px solid #e9ecef; }
 .fdp-cfg-cmd-row:last-child { border-bottom: none; }
-.fdp-cfg-cmd-text {
-  flex: 1; font-family: 'Cascadia Code','Fira Code',monospace;
-  font-size: 10px; color: var(--muted);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.fdp-cfg-badge {
-  font-size: 9px; font-weight: 700; padding: 1px 5px;
-  border-radius: 8px; flex-shrink: 0;
-}
-.fdp-cfg-badge.ok  { background: rgba(34,197,94,0.15);  color: var(--green); }
-.fdp-cfg-badge.err { background: rgba(239,68,68,0.15);  color: var(--red);   }
+.fdp-cfg-cmd-text { flex: 1; font-family: 'SFMono-Regular', Consolas, monospace; font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fdp-cfg-badge { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px; flex-shrink: 0; }
+.fdp-cfg-badge.ok  { background: #d1e7dd; color: #0a3622; }
+.fdp-cfg-badge.err { background: #f8d7da; color: #842029; }
 .ruhs-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-.ruhs-table th {
-  text-align: left; font-size: 10px; font-weight: 700;
-  color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;
-  padding: 3px 6px 5px; border-bottom: 1px solid var(--border);
-}
-.ruhs-table td { padding: 3px 6px; border-bottom: 1px solid rgba(46,51,80,0.4); }
+.ruhs-table th { text-align: left; font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; padding: 3px 6px 5px; border-bottom: 1px solid var(--border); }
+.ruhs-table td { padding: 3px 6px; border-bottom: 1px solid #e9ecef; }
 .ruhs-table tr:last-child td { border-bottom: none; }
 .ruhs-table td:first-child { color: var(--muted); width: 40px; }
 </style>
@@ -685,6 +660,7 @@ select.field-input { cursor: pointer; }
       <option value="">Loading devices…</option>
     </select>
     <button class="btn btn-ghost btn-sm" onclick="refreshDevices()">↺ Refresh</button>
+    <button class="btn btn-ghost btn-sm" id="dark-toggle" onclick="toggleDarkMode()" title="Toggle dark mode">🌙</button>
     <button class="btn btn-primary" id="run-btn" onclick="runTests()" disabled>▶ Run Tests</button>
     <button class="btn btn-danger"  id="stop-btn" onclick="stopTests()" style="display:none">■ Stop</button>
   </div>
@@ -726,8 +702,10 @@ select.field-input { cursor: pointer; }
       <div class="cat-tab active" data-cat="All"   onclick="switchTab('All')">All   <span class="tab-count" id="tc-All">0</span></div>
       <div class="cat-tab"       data-cat="Basic"  onclick="switchTab('Basic')">🔍 Basic  <span class="tab-count" id="tc-Basic">0</span></div>
       <div class="cat-tab"       data-cat="IO"     onclick="switchTab('IO')">⚙ IO  <span class="tab-count" id="tc-IO">0</span></div>
+      <div class="cat-tab"       data-cat="Endurance" onclick="switchTab('Endurance')">📈 Endurance  <span class="tab-count" id="tc-Endurance">0</span></div>
       <div class="cat-tab"       data-cat="Reset"  onclick="switchTab('Reset')">🔄 Reset  <span class="tab-count" id="tc-Reset">0</span></div>
       <div class="cat-tab"       data-cat="Admin"  onclick="switchTab('Admin')">🛠 Admin  <span class="tab-count" id="tc-Admin">0</span></div>
+      <div class="cat-tab"       data-cat="Corner" onclick="switchTab('Corner')">🃏 Corner  <span class="tab-count" id="tc-Corner">0</span></div>
     </div>
 
     <!-- Search results info label -->
@@ -777,6 +755,11 @@ select.field-input { cursor: pointer; }
           <span class="run-opt-label">Stop on error</span>
         </label>
         <span id="run-cycle-indicator" style="margin-left:auto;font-size:11px;color:var(--accent);display:none"></span>
+        <button class="btn btn-danger btn-sm" id="test-fio-stop-btn"
+                onclick="killFIO()" style="display:none"
+                title="Stop the fio process currently running inside an E-category test">
+          ■ Stop FIO
+        </button>
       </div>
       <div class="exec-summary">
         <div class="sum-item"><div class="sum-dot pass"></div><span id="sum-pass">0 pass</span></div>
@@ -816,8 +799,13 @@ select.field-input { cursor: pointer; }
     <div class="dc-grid">
       <div class="dc-card" onclick="ctrlExtractFDPConfig()">
         <div class="dc-card-icon">🔬</div>
-        <div class="dc-card-title">Extract DUT FDP Config</div>
+        <div class="dc-card-title">FDP Info and Control</div>
         <div class="dc-card-desc">Snapshot FDP enable state, RUHS, configs, stats, and event log from the selected device.</div>
+      </div>
+      <div class="dc-card" onclick="openLBAMapModal()">
+        <div class="dc-card-icon">🗺</div>
+        <div class="dc-card-title">Get NS LBA Map</div>
+        <div class="dc-card-desc">Scan the selected namespace and visualise data placement as a colour-coded 100 × 100 grid (max 100 GB).</div>
       </div>
     </div>
   </div>
@@ -859,7 +847,129 @@ select.field-input { cursor: pointer; }
     </div>
   </div>
 
+  <div>
+    <div class="dc-section-title">Reference</div>
+    <div class="dc-grid">
+      <div class="dc-card" onclick="openCheatsheetModal()">
+        <div class="dc-card-icon">📖</div>
+        <div class="dc-card-title">nvme fdp Commands Cheatsheet</div>
+        <div class="dc-card-desc">Quick reference for nvme-cli FDP commands — namespace management, log pages, features, and IO.</div>
+      </div>
+    </div>
+  </div>
+
 </div><!-- /#view-device -->
+
+<!-- ═══ Test HTML Summary Modal ══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="test-summary-modal">
+  <div class="modal" style="width:min(1060px,95vw);max-height:90vh;display:flex;flex-direction:column">
+    <div class="modal-header" style="flex-shrink:0">
+      <div>
+        <div class="modal-title" id="test-summary-modal-title">Test Summary</div>
+        <div class="modal-subtitle" id="test-summary-modal-subtitle"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal('test-summary-modal')">×</button>
+    </div>
+    <div style="flex:1;overflow:auto;padding:0">
+      <iframe id="test-summary-iframe"
+              style="width:100%;height:100%;min-height:600px;border:none;display:block"
+              sandbox="allow-scripts"></iframe>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('test-summary-modal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ LBA Map Modal ═════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="lba-map-modal">
+  <div class="modal" style="width:min(920px,97vw);max-height:95vh;display:flex;flex-direction:column">
+    <div class="modal-header" style="flex-shrink:0">
+      <div>
+        <div class="modal-title">🗺 NS LBA Map <span id="lba-map-ns-label" style="font-size:12px;font-weight:400;color:var(--muted);margin-left:6px"></span></div>
+        <div class="modal-subtitle" id="lba-map-subtitle">Each major cell = 1 GB · each minor cell = 10 MB</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('lba-map-modal')">×</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;padding:2px 12px 0">
+      <div id="lba-map-status" style="flex:1;font-size:11px;color:var(--muted);min-height:18px">Select a device and click Scan to begin.</div>
+      <div id="lba-map-mode-badge" style="display:none;font-size:10px;padding:2px 7px;border-radius:3px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);white-space:nowrap"></div>
+    </div>
+    <div id="lba-progress-wrap" style="display:none;padding:2px 12px 4px">
+      <div style="height:4px;background:var(--surface3);border-radius:2px;overflow:hidden">
+        <div id="lba-progress-bar" style="height:100%;width:0%;background:var(--accent);border-radius:2px;transition:width 0.3s ease"></div>
+      </div>
+    </div>
+    <div id="lba-map-legend">
+      <div class="lba-legend-swatch" style="background:#1a1d27;border:1px solid #333"></div>Empty
+      <div class="lba-legend-swatch" style="background:#1e3a5f"></div>Sparse (&lt;25%)
+      <div class="lba-legend-swatch" style="background:#1d6fa4"></div>Low (25–50%)
+      <div class="lba-legend-swatch" style="background:#0ea5e9"></div>Medium (50–75%)
+      <div class="lba-legend-swatch" style="background:#22c55e"></div>Dense (75–99%)
+      <div class="lba-legend-swatch" style="background:#10b981"></div>Full (100%)
+      <div class="lba-legend-swatch" style="background:#2d2d3a;border:1px solid #444"></div>Beyond NS
+    </div>
+    <div style="flex:1;overflow-y:auto;min-height:0;padding:0 4px">
+      <div id="lba-major-grid"></div>
+    </div>
+    <div class="modal-footer">
+      <span id="lba-mode-toggle" style="margin-right:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted)">
+        Mode:
+        <label style="cursor:pointer"><input type="radio" name="lba-mode" value="sample" checked> Sample</label>
+        <label style="cursor:pointer"><input type="radio" name="lba-mode" value="full"> Full Scan</label>
+      </span>
+      <button class="btn btn-danger btn-sm" id="lba-stop-btn" style="display:none"
+              onclick="stopLBAScan()">■ Stop</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('lba-map-modal')">Close</button>
+      <button class="btn btn-primary btn-sm" id="lba-scan-btn" onclick="startLBAScan(true)">▶ New Scan</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ E0 Pre-conditioning Reminder Modal ════════════════════════════ -->
+<div class="modal-overlay" id="e0-reminder-modal">
+  <div class="modal" style="width:480px;border-top:4px solid var(--yellow)">
+    <div class="modal-header" style="flex-shrink:0">
+      <div>
+        <div class="modal-title" style="color:var(--yellow)">⚠️  Pre-conditioning Reminder</div>
+        <div class="modal-subtitle">This dialog will close automatically when the test completes.</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('e0-reminder-modal')">×</button>
+    </div>
+    <div class="modal-body" style="font-size:13px;line-height:1.7;color:var(--text)">
+      <p>Run <strong>E0 (Endurance Pre-conditioning)</strong> before running E1–E3.</p>
+      <p>E0 sets up the required namespace configuration and fills the
+         device 3× to reach steady state.</p>
+      <p style="color:var(--yellow);font-weight:600">
+        WAF results are not meaningful on a fresh or partially-written device.
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('e0-reminder-modal')">Acknowledge</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ nvme fdp Cheatsheet Modal ════════════════════════════════════════ -->
+<div class="modal-overlay" id="cheatsheet-modal">
+  <div class="modal" style="width:min(900px,95vw);max-height:90vh;display:flex;flex-direction:column">
+    <div class="modal-header" style="flex-shrink:0">
+      <div>
+        <div class="modal-title">📖 nvme fdp Commands Cheatsheet</div>
+        <div class="modal-subtitle">Right-click any text to copy. Use the button below to copy everything.</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('cheatsheet-modal')">×</button>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:0 18px 16px;min-height:0;background:var(--surface)">
+      <div id="cheatsheet-content" style="user-select:text;cursor:text"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" id="cheatsheet-copy-btn"
+              onclick="copyCheatsheet()">📋 Copy All</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('cheatsheet-modal')">Close</button>
+    </div>
+  </div>
+</div>
 
 <!-- ═══ Delete Namespaces Modal ══════════════════════════════════════════════ -->
 <div class="modal-overlay" id="delete-ns-modal">
@@ -1008,11 +1118,11 @@ select.field-input { cursor: pointer; }
             </select>
           </div>
           <div class="field-group">
-            <label class="field-label" title="Placement List Index — which entry in the namespace Placement Identifier list to use.&#10;0 = first placement handle. Must be a valid index for this namespace.">
+            <label class="field-label" title="Placement List Index (or comma-separated list of indices).&#10;Single: 0&#10;Multiple: 0,1,2,3 — fio will use all listed PLIs with the selected PLI Select policy.&#10;Must be valid indices for this namespace.">
               FDP PLI ⓘ
             </label>
-            <input class="field-input" id="fio-fdp-pli" type="number" value="0" min="0"
-                   oninput="fioUpdatePreview()">
+            <input class="field-input" id="fio-fdp-pli" type="text" value="0"
+                   placeholder="e.g. 0 or 0,1,2,3" oninput="fioUpdatePreview()">
           </div>
         </div>
 
@@ -1041,15 +1151,20 @@ select.field-input { cursor: pointer; }
 
       <!-- Right: live job preview -->
       <div style="width:240px;flex-shrink:0;display:flex;flex-direction:column;gap:6px">
-        <div class="field-label" style="margin-bottom:2px">Job File Preview</div>
-        <pre id="fio-preview" style="
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+          <div class="field-label">Job File Preview <span id="fio-preview-edited-badge"
+            style="display:none;font-size:9px;color:var(--accent);margin-left:4px">(edited)</span></div>
+          <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 6px"
+                  onclick="fioResetPreview()" title="Discard manual edits and regenerate from fields">↺ Reset</button>
+        </div>
+        <textarea id="fio-preview" spellcheck="false" style="
           flex:1; margin:0; font-family:'Cascadia Code','Fira Code',monospace;
-          font-size:10.5px; line-height:1.65;
+          font-size:10.5px; line-height:1.65; resize:none;
           background:#0a0c12; color:#c8d3e0;
           border:1px solid var(--border); border-radius:6px;
           padding:10px 12px; overflow-y:auto; min-height:220px;
-          white-space:pre; tab-size:2;
-        "></pre>
+          white-space:pre; tab-size:2; outline:none;
+        " oninput="fioPreviewEdited()" placeholder="Edit job file directly..."></textarea>
         <div id="fio-run-status" style="font-size:11px;color:var(--muted);min-height:16px"></div>
       </div>
 
@@ -1058,6 +1173,8 @@ select.field-input { cursor: pointer; }
     <div class="modal-footer">
       <span id="fio-result-summary" style="margin-right:auto;font-size:11px;color:var(--muted)"></span>
       <button class="btn btn-ghost btn-sm" onclick="closeModal('fio-modal')">Close</button>
+      <button class="btn btn-danger btn-sm" id="fio-stop-btn"
+              onclick="killFIO()" style="display:none">■ Stop FIO</button>
       <button class="btn btn-primary btn-sm" id="fio-run-btn" onclick="runFIO()">▶ Run FIO</button>
     </div>
   </div>
@@ -1065,7 +1182,7 @@ select.field-input { cursor: pointer; }
 
 <!-- ═══ FDP Config Modal ═══════════════════════════════════════════════════ -->
 <div class="modal-overlay" id="fdp-config-modal">
-  <div class="modal" style="width:640px">
+  <div class="modal" style="width:min(1100px,95vw);max-height:90vh">
     <div class="modal-header">
       <div>
         <div class="modal-title">DUT FDP Configuration</div>
@@ -1113,6 +1230,12 @@ select.field-input { cursor: pointer; }
       <button class="modal-close" onclick="closeModal('create-ns-modal')">×</button>
     </div>
     <div class="modal-body">
+      <div class="field-group" style="margin-bottom:4px">
+        <label class="field-label">Controller Device</label>
+        <input class="field-input" id="ns-ctrl-dev" type="text"
+               placeholder="/dev/nvme0">
+        <span class="field-hint">Target controller (e.g. /dev/nvme0) — used for create-ns and attach-ns</span>
+      </div>
       <div class="section-divider">Basic Parameters</div>
       <div class="field-row">
         <div class="field-group">
@@ -1128,16 +1251,17 @@ select.field-input { cursor: pointer; }
       </div>
       <div class="field-row">
         <div class="field-group">
-          <label class="field-label">Block Size (FLBAS)</label>
-          <select class="field-input" id="ns-flbas">
-            <option value="0">0 — 512 B</option>
-            <option value="1">1 — 512 B + 8B meta</option>
-            <option value="4" selected>4 — 4096 B</option>
-            <option value="5">5 — 4096 B + 8B meta</option>
+          <label class="field-label">Block Size</label>
+          <select class="field-input" id="ns-block-size">
+            <option value="512">512 B</option>
+            <option value="1024">1024 B</option>
+            <option value="2048">2048 B</option>
+            <option value="4096" selected>4096 B</option>
+            <option value="8192">8192 B</option>
           </select>
         </div>
         <div class="field-group">
-          <label class="field-label">Placement Handle List (--phndls)</label>
+          <label class="field-label">Placement Handle List</label>
           <input class="field-input" id="ns-phndls" type="text" value="0,1,2,3,4,5,6,7"
                  placeholder="e.g. 0,1,2,3">
           <span class="field-hint">Comma-separated RUH indices to assign</span>
@@ -1156,13 +1280,7 @@ select.field-input { cursor: pointer; }
           <span class="field-hint">Endurance group to assign NS to</span>
         </div>
       </div>
-      <div class="field-group">
-        <label class="field-label">Namespace Sharing (NMIC)</label>
-        <select class="field-input" id="ns-nmic">
-          <option value="0" selected>0 — Private (not shared)</option>
-          <option value="1">1 — Shared</option>
-        </select>
-      </div>
+
       <div class="field-group">
         <label class="field-label">Command Preview</label>
         <div class="ns-result-box" id="cmd-preview" style="min-height:54px"></div>
@@ -1178,16 +1296,17 @@ select.field-input { cursor: pointer; }
 <!-- ═══════════════════════════ SCRIPT ════════════════════════════════════ -->
 <!-- ═══ Targeted Write Modal ═══════════════════════════════════════════════ -->
 <div class="modal-overlay" id="targeted-write-modal">
-  <div class="modal" style="width:480px">
+  <div class="modal" style="width:500px">
     <div class="modal-header">
       <div>
         <div class="modal-title">✍ Targeted FDP Write</div>
-        <div class="modal-subtitle">Write consecutive 4 KB blocks to a selected Reclaim Unit Handle</div>
+        <div class="modal-subtitle">Write blocks to a selected Reclaim Unit Handle</div>
       </div>
       <button class="modal-close" onclick="closeModal('targeted-write-modal')">×</button>
     </div>
     <div class="modal-body">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+
         <div class="param-field">
           <label>Reclaim Unit Handle (RUH)</label>
           <input type="number" id="tw-ruh" value="0" min="0" max="65535">
@@ -1196,15 +1315,49 @@ select.field-input { cursor: pointer; }
           <label>Number of Writes</label>
           <input type="number" id="tw-num-writes" value="10" min="1" max="1000">
         </div>
-        <div class="param-field" style="grid-column:1/-1">
-          <label>Data Source File (optional)</label>
-          <input type="text" id="tw-data-file" value="/dev/zero" placeholder="/dev/zero">
+
+        <div class="param-field">
+          <label>Data Size (bytes)</label>
+          <input type="number" id="tw-data-size" value="4096" min="512" step="512"
+                 placeholder="4096">
         </div>
-      </div>
-      <div style="font-size:11px;color:var(--muted);line-height:1.6;padding:8px 10px;
-                  background:var(--surface2);border-radius:6px;border:1px solid var(--border)">
-        Start LBA is chosen randomly (0 – 1,000,000) each run.<br>
-        Writes proceed consecutively: LBA, LBA+1, LBA+2, …
+        <div class="param-field">
+          <label>Block Count</label>
+          <input type="number" id="tw-block-count" value="1" min="1" max="65535">
+        </div>
+
+        <div class="param-field">
+          <label>Force Unit Access (FUA)</label>
+          <div style="display:flex;align-items:center;gap:8px;padding-top:4px">
+            <input type="checkbox" id="tw-fua" style="width:16px;height:16px;cursor:pointer">
+            <span style="font-size:11px;color:var(--muted)">Force write to non-volatile media</span>
+          </div>
+        </div>
+        <div class="param-field"><!-- spacer --></div>
+
+        <div class="param-field" style="grid-column:1/-1">
+          <label>Starting LBA</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="number" id="tw-start-lba" min="0" placeholder="Leave blank to randomise">
+            <button class="btn btn-ghost btn-sm" style="white-space:nowrap;flex-shrink:0"
+                    onclick="randomiseLBA()"
+                    title="Randomise LBA (0 – NS max LBA)">🎲 Random</button>
+          </div>
+        </div>
+
+        <div class="param-field" style="grid-column:1/-1">
+          <label>Data Source File</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="text" id="tw-data-file" value="/dev/zero" placeholder="/dev/zero"
+                   style="flex:1;min-width:0">
+            <input type="file" id="tw-file-picker" style="display:none"
+                   onchange="onTWFilePicked(this)">
+            <button class="btn btn-ghost btn-sm" style="white-space:nowrap;flex-shrink:0"
+                    onclick="document.getElementById('tw-file-picker').click()"
+                    title="Browse for a file">📂 Browse</button>
+          </div>
+        </div>
+
       </div>
       <div id="tw-result" style="display:none;font-size:11px;line-height:1.7;
            padding:10px 12px;background:var(--surface2);border-radius:6px;
@@ -1243,19 +1396,34 @@ const CAT_GROUP = {
   'Events':    'Basic',
   'General':   'Basic',
   'IO':        'IO',
-  'Endurance': 'IO',
+  'Endurance': 'Endurance',
   'Reset':     'Reset',
   'Admin':     'Admin',
+  'Corner':    'Corner',
 };
 const CAT_ICON = {
   Basic: '🔍', Placement: '📌', Reclaim: '♻', Events: '📋',
-  IO: '⚙', Endurance: '📈', Reset: '🔄', General: '🧪', Admin: '🛠',
+  IO: '⚙', Endurance: '📈', Reset: '🔄', General: '🧪', Admin: '🛠', Corner: '🃏',
 };
 function groupOf(cat) { return CAT_GROUP[cat] || 'Basic'; }
 
 // ── Configurable test parameter definitions ───────────────────────────────
 // Each entry: { label, key, type, default, min?, max? }
 const TEST_PARAMS = {
+  'endurance_precondition': [
+    { label: 'RU Handles (n_ruhs)', key: 'n_ruhs',          type: 'slider', default: 4,  min: 1, max: 64 },
+    { label: 'Fill Passes',         key: 'passes',           type: 'number', default: 3,  min: 1 },
+  ],
+  'endurance_waf': [
+    { label: 'Duration (sec)', key: 'fio_duration_sec', type: 'number', default: 86400, min: 60 },
+  ],
+  'endurance_waf_all_ruh': [
+    { label: 'Duration (hours)', key: 'fio_duration_sec', type: 'number', default: 48, min: 1 },
+  ],
+  'endurance_single_ruh': [
+    { label: 'Namespaces',       key: 'n_namespaces',     type: 'number', default: 1,     min: 1, max: 32 },
+    { label: 'Duration (hours)', key: 'fio_duration_sec', type: 'number', default: 24,    min: 1 },
+  ],
   'nvme_write_user_controlled': [
     { label: 'Namespace',        key: 'namespace',         type: 'number', default: 1,      min: 1 },
     { label: 'Start LBA',        key: 'start_lba',         type: 'number', default: 0,      min: 0 },
@@ -1289,12 +1457,33 @@ ${'─'.repeat(44)}`, 'info');
 });
 socket.on('test_start',   d => { log(`\n◉ [${d.index+1}] Running: ${d.name}`, 'heading'); updateQueueStatus(d.test_id, 'running'); });
 socket.on('test_log',     d => log('  ' + d.message, 'info'));
+socket.on('e0_reminder', () => {
+  openModal('e0-reminder-modal');
+});
+
 socket.on('test_result',  d => {
   const ic = {pass:'✔',fail:'✘',warn:'⚠',error:'⚠',skip:'⏭'}[d.status]||'?';
   const ty = {pass:'success',fail:'error',warn:'warn',error:'error'}[d.status]||'info';
   log(`  ${ic} ${d.message}`, ty);
   updateQueueStatus(d.test_id, 'status-'+d.status);
   updateSummary();
+
+  // If the test produced an HTML summary, show it in the summary modal
+  if (d.html_summary) {
+    // Close the E0 reminder if it is still open so it doesn't block the summary
+    const reminderOverlay = document.getElementById('e0-reminder-modal');
+    if (reminderOverlay && reminderOverlay.classList.contains('open')) {
+      closeModal('e0-reminder-modal');
+    }
+    const iframe = document.getElementById('test-summary-iframe');
+    const title  = document.getElementById('test-summary-modal-title');
+    const sub    = document.getElementById('test-summary-modal-subtitle');
+    title.textContent = d.name || d.test_id || 'Test Summary';
+    sub.textContent   = `${d.status?.toUpperCase() || ''} — ${d.message || ''}`;
+    // Write HTML into iframe via srcdoc for sandbox safety
+    iframe.srcdoc = d.html_summary;
+    openModal('test-summary-modal');
+  }
 });
 socket.on('run_complete', d => {
   const r=d.results, pass=r.filter(x=>x.status==='pass').length,
@@ -1332,22 +1521,52 @@ async function refreshDevices() {
     sel.innerHTML = '<option value="">No NVMe devices found</option>';
   } else {
     r.devices.forEach(d => {
-      const o = document.createElement('option');
-      o.value = d.path;
-      o.textContent = `${d.path} — ${d.model} (${d.size_gb}GB)`;
-      if (d.dummy) o.textContent += ' [DUMMY]';
-      sel.appendChild(o);
+      if (d.dummy) {
+        // Dummy devices: single flat option
+        const o = document.createElement('option');
+        o.value = d.path;
+        o.textContent = `${d.path} — ${d.model} [DUMMY]`;
+        sel.appendChild(o);
+      } else if (d.no_namespaces) {
+        // Namespace-less controller: selectable so the user can create namespaces on it
+        const o = document.createElement('option');
+        o.value = d.path;
+        o.textContent = `${d.path}  —  ${d.model}  ⚠ No namespaces`;
+        o.style.color = 'var(--yellow)';
+        sel.appendChild(o);
+      } else {
+        // Real devices: non-selectable controller header + selectable NS entries
+        const ctrl = document.createElement('option');
+        ctrl.disabled = true;
+        ctrl.value = '';
+        ctrl.textContent = `${d.path}  —  ${d.model}  (${d.size_gb} GB)`;
+        sel.appendChild(ctrl);
+
+        // Selectable namespace entries indented below the controller
+        (d.namespaces || []).forEach(ns => {
+          const o = document.createElement('option');
+          o.value = ns.path;
+          o.textContent = ` ${ns.path}  ·  NSID ${ns.nsid}  ·  ${ns.size_gb} GB`;
+          sel.appendChild(o);
+        });
+      }
     });
-    // Auto-select the first real (non-dummy) device; fall back to index 0
-    const firstReal = r.devices.find(d => !d.dummy);
-    sel.value = firstReal ? firstReal.path : r.devices[0].path;
+    // Auto-select: prefer a namespace device, then a namespace-less controller, then dummy
+    let firstNS = null, firstNoNS = null;
+    for (const d of (r.devices || [])) {
+      if (!d.dummy && d.namespaces?.length && !firstNS) firstNS = d.namespaces[0].path;
+      if (!d.dummy && d.no_namespaces && !firstNoNS)   firstNoNS = d.path;
+    }
+    if (firstNS)         sel.value = firstNS;
+    else if (firstNoNS)  sel.value = firstNoNS;
+    else if (r.devices[0]?.dummy) sel.value = r.devices[0].path;
   }
   updateRunButton();
 }
 
 // ── Tab counts ─────────────────────────────────────────────────────────────
 function updateTabCounts() {
-  const counts = { All: availableTests.length, Basic: 0, IO: 0, Reset: 0, Admin: 0 };
+  const counts = { All: availableTests.length, Basic: 0, IO: 0, Endurance: 0, Reset: 0, Admin: 0, Corner: 0 };
   availableTests.forEach(t => {
     const g = groupOf(t.category);
     if (counts[g] !== undefined) counts[g]++;
@@ -1455,7 +1674,27 @@ function makeCard(t) {
   // Build params panel HTML if this test is configurable
   let paramsHtml = '';
   if (hasParams) {
-    const fieldHtml = paramDefs.map(p => `
+    const fieldHtml = paramDefs.map(p => {
+      if (p.type === 'slider') {
+        const min = p.min ?? 1;
+        const max = p.max ?? 64;
+        const val = p.default ?? min;
+        return `
+      <div class="param-field" style="grid-column:1/-1">
+        <label>${escHtml(p.label)}
+          <span id="slider-val-${escHtml(p.key)}-${escHtml(t.id)}"
+                style="margin-left:6px;font-weight:700;color:var(--accent)">${val}</span>
+          <span id="slider-max-${escHtml(p.key)}-${escHtml(t.id)}"
+                style="margin-left:4px;font-size:9px;color:var(--muted)">(max: ${max})</span>
+        </label>
+        <input type="range" data-param-key="${escHtml(p.key)}"
+               data-slider-label="${escHtml(p.key)}-${escHtml(t.id)}"
+               min="${min}" max="${max}" value="${val}" step="1"
+               style="width:100%;accent-color:var(--accent)"
+               oninput="document.getElementById('slider-val-${escHtml(p.key)}-${escHtml(t.id)}').textContent=this.value">
+      </div>`;
+      }
+      return `
       <div class="param-field">
         <label>${escHtml(p.label)}</label>
         <input type="${p.type}" data-param-key="${escHtml(p.key)}"
@@ -1463,7 +1702,8 @@ function makeCard(t) {
                ${p.min !== undefined ? `min="${p.min}"` : ''}
                ${p.max !== undefined ? `max="${p.max}"` : ''}
                placeholder="${escHtml(String(p.default))}">
-      </div>`).join('');
+      </div>`;
+    }).join('');
     paramsHtml = `
       <div class="test-card-params-toggle" data-for="${escHtml(t.id)}">
         <span class="toggle-arrow">▶</span>
@@ -1509,6 +1749,37 @@ function makeCard(t) {
   });
   card.addEventListener('dragend', () => card.classList.remove('dragging'));
   card.addEventListener('dblclick', () => addToQueue(t.id));
+
+  // For E0: asynchronously update the n_ruhs slider max from the device's
+  // FDP configs (nruh field) so the user can't set more RUHs than the device supports
+  if (t.id === 'endurance_precondition') {
+    const slider = card.querySelector('[data-param-key="n_ruhs"]');
+    const maxLabel = card.querySelector('[id^="slider-max-n_ruhs"]');
+    if (slider) {
+      (async () => {
+        try {
+          const device = getSelectedDevice();
+          if (!device) return;
+          const r = await fetch('/api/ctrl/extract-fdp-config', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({device})
+          }).then(x => x.json());
+          const cfgs  = r.fdp_configs?.configs || r.fdp_configs?.configurations || [];
+          const nruh  = cfgs[0]?.nruh;
+          if (nruh && Number(nruh) > 0) {
+            const maxVal = Number(nruh);
+            slider.max   = maxVal;
+            // Default to device max — set value and display
+            slider.value = maxVal;
+            if (maxLabel) maxLabel.textContent = `(max: ${maxVal})`;
+            const valEl = card.querySelector('[id^="slider-val-n_ruhs"]');
+            if (valEl) valEl.textContent = maxVal;
+          }
+        } catch(_e) { /* use default max */ }
+      })();
+    }
+  }
+
   return card;
 }
 
@@ -1524,7 +1795,7 @@ function readCardParams(testId) {
     const key = input.dataset.paramKey;
     const def = defs.find(d => d.key === key);
     const raw = input.value.trim();
-    if (def && def.type === 'number') {
+    if (def && (def.type === 'number' || def.type === 'slider')) {
       const n = raw === '' ? def.default : Number(raw);
       params[key] = isNaN(n) ? def.default : n;
     } else {
@@ -1763,8 +2034,9 @@ async function stopTests() {
 }
 
 function setRunning(running) {
-  document.getElementById('run-btn').style.display  = running ? 'none' : '';
-  document.getElementById('stop-btn').style.display = running ? '' : 'none';
+  document.getElementById('run-btn').style.display          = running ? 'none' : '';
+  document.getElementById('stop-btn').style.display         = running ? '' : 'none';
+  document.getElementById('test-fio-stop-btn').style.display = running ? '' : 'none';
 }
 
 function updateRunButton() {
@@ -1849,6 +2121,11 @@ function getSelectedDevice() { return document.getElementById('device-select').v
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
 
 function openFIOModal() {
+  _fioPreviewDirty = false;
+  const preview = document.getElementById('fio-preview');
+  if (preview) preview.style.borderColor = '';
+  const badge = document.getElementById('fio-preview-edited-badge');
+  if (badge) badge.style.display = 'none';
   const device = getSelectedDevice();
   if (!device) return alert('Select a device first.');
 
@@ -1865,7 +2142,10 @@ function openFIOModal() {
   openModal('fio-modal');
 }
 
+let _fioPreviewDirty = false;   // true when user has manually edited the textarea
+
 function fioUpdatePreview() {
+  if (_fioPreviewDirty) return;  // user is in manual-edit mode — don't overwrite
   const get = id => document.getElementById(id)?.value ?? '';
   const ioengine  = get('fio-ioengine');
   const rw        = get('fio-rw');
@@ -1894,7 +2174,50 @@ function fioUpdatePreview() {
   }
   lines.push('', '[job]', `filename=${filename}`, '');
 
-  document.getElementById('fio-preview').textContent = lines.join('\n');
+  document.getElementById('fio-preview').value = lines.join('\n');
+}
+
+function fioPreviewEdited() {
+  // Mark preview as user-edited and sync fields back from the text
+  _fioPreviewDirty = true;
+  document.getElementById('fio-preview').style.borderColor = 'var(--accent)';
+  const badge = document.getElementById('fio-preview-edited-badge');
+  if (badge) badge.style.display = '';
+  fioSyncFromPreview();
+}
+
+function fioSyncFromPreview() {
+  // Parse key=value pairs from the textarea and push them into the form fields
+  const text = document.getElementById('fio-preview')?.value || '';
+  const kv = {};
+  text.split('\n').forEach(line => {
+    const m = line.trim().match(/^([\w_]+)\s*=\s*(.+)$/);
+    if (m) kv[m[1].toLowerCase()] = m[2].trim();
+  });
+  const set = (id, val) => {
+    const el = document.getElementById(id);
+    if (el && val !== undefined) el.value = val;
+  };
+  set('fio-ioengine',       kv['ioengine']);
+  set('fio-rw',             kv['rw']);
+  set('fio-bs',             kv['bs']);
+  set('fio-iodepth',        kv['iodepth']);
+  set('fio-numjobs',        kv['numjobs']);
+  set('fio-runtime',        kv['runtime']);
+  set('fio-direct',         kv['direct']);
+  set('fio-fdp-pli',        kv['fdp_pli']);
+  set('fio-fdp-pli-select', kv['fdp_pli_select']);
+  set('fio-filename',       kv['filename']);
+  if (kv['fdp'] !== undefined) set('fio-fdp', kv['fdp']);
+}
+
+function fioResetPreview() {
+  // Discard manual edits and regenerate from form fields
+  _fioPreviewDirty = false;
+  document.getElementById('fio-preview').style.borderColor = '';
+  const badge = document.getElementById('fio-preview-edited-badge');
+  if (badge) badge.style.display = 'none';
+  fioUpdatePreview();
 }
 
 async function runFIO() {
@@ -1906,8 +2229,12 @@ async function runFIO() {
   const status = document.getElementById('fio-run-status');
   const sumEl  = document.getElementById('fio-result-summary');
 
+  // Always send the raw job file content so manual edits are honoured
+  const jobFileContent = document.getElementById('fio-preview')?.value || '';
   const payload = {
     device,
+    job_file_content: jobFileContent,
+    // Keep individual fields for the runtime display and fallback
     ioengine:        get('fio-ioengine'),
     rw:              get('fio-rw'),
     direct:          parseInt(get('fio-direct') || '1'),
@@ -1916,7 +2243,7 @@ async function runFIO() {
     numjobs:         parseInt(get('fio-numjobs'))  || 1,
     runtime:         parseInt(get('fio-runtime'))  || 30,
     fdp:             get('fio-fdp') === '1',
-    fdp_pli:         parseInt(get('fio-fdp-pli'))  || 0,
+    fdp_pli:         get('fio-fdp-pli').trim() || '0',
     fdp_pli_select:  get('fio-fdp-pli-select'),
     filename:        get('fio-filename') || device,
   };
@@ -1925,6 +2252,8 @@ async function runFIO() {
   btn.textContent = '⏳ Running…';
   status.textContent = `Running ${payload.runtime}s workload…`;
   sumEl.textContent  = '';
+  const stopBtn = document.getElementById('fio-stop-btn');
+  if (stopBtn) stopBtn.style.display = '';
 
   try {
     const r = await fetch('/api/ctrl/run-fio', {
@@ -1937,6 +2266,14 @@ async function runFIO() {
       status.textContent = '';
       sumEl.textContent  = '✗ ' + r.error;
       sumEl.style.color  = 'var(--red)';
+      // Show a warning dialog prompting the user to check the job file
+      alert(
+        '\u26a0 FIO Workload Failed\n\n' +
+        r.error + '\n\n' +
+        'Please double-check the Job File Preview for any incorrect or\n' +
+        'invalid fields (e.g. unsupported ioengine, missing filename,\n' +
+        'invalid fdp_pli value). You can edit the preview directly.'
+      );
     } else {
       status.textContent = '';
       const parts = [];
@@ -1954,6 +2291,32 @@ async function runFIO() {
   } finally {
     btn.disabled = false;
     btn.textContent = '▶ Run FIO';
+    if (stopBtn) stopBtn.style.display = 'none';
+  }
+}
+
+async function killFIO() {
+  // Handles both the FIO modal stop button and the test panel stop button
+  const modalBtn = document.getElementById('fio-stop-btn');
+  const testBtn  = document.getElementById('test-fio-stop-btn');
+  const sumEl    = document.getElementById('fio-result-summary');
+  [modalBtn, testBtn].forEach(b => {
+    if (b) { b.disabled = true; b.textContent = '⏳ Stopping…'; }
+  });
+  try {
+    const r = await fetch('/api/ctrl/kill-fio', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({}),
+    }).then(x => x.json());
+    if (sumEl) {
+      sumEl.textContent = r.killed ? '⚠ FIO stopped by user' : r.message;
+      sumEl.style.color = r.killed ? 'var(--yellow)' : 'var(--muted)';
+    }
+  } catch(e) {
+    if (sumEl) { sumEl.textContent = '✗ Stop failed: ' + e.message; sumEl.style.color = 'var(--red)'; }
+  } finally {
+    if (modalBtn) { modalBtn.disabled = false; modalBtn.style.display = 'none'; }
+    if (testBtn)  { testBtn.disabled  = false; testBtn.textContent = '■ Stop FIO'; }
   }
 }
 
@@ -1966,25 +2329,80 @@ function openTargetedWriteModal() {
   openModal('targeted-write-modal');
 }
 
+async function randomiseLBA() {
+  // Fetch actual nsze for the selected device so the random LBA is within range
+  const device = getSelectedDevice();
+  const field  = document.getElementById('tw-start-lba');
+  let maxLba   = 1_000_000;   // safe fallback
+  if (device) {
+    try {
+      const r = await fetch('/api/ctrl/list-ns', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({device})
+      }).then(x => x.json());
+      const ns = (r.namespaces || [])[0];
+      if (ns?.nsze) maxLba = ns.nsze - 1;
+    } catch(_e) { /* use fallback */ }
+  }
+  field.value = Math.floor(Math.random() * (maxLba + 1));
+  field.title = `Randomised in [0, ${maxLba}]`;
+}
+
+async function onTWFilePicked(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const field = document.getElementById('tw-data-file');
+
+  // Upload the file contents to the server so it has a real path.
+  // The server saves it to a temp location and returns the server-side path.
+  const formData = new FormData();
+  formData.append('file', file);
+  try {
+    const r = await fetch('/api/ctrl/upload-data-file', {
+      method: 'POST', body: formData
+    }).then(x => x.json());
+    if (r.path) {
+      field.value = r.path;
+      field.title = `Uploaded: ${r.path}`;
+    } else {
+      alert('Upload failed: ' + (r.error || 'Unknown error'));
+    }
+  } catch(e) {
+    // Fallback: just show the filename and let the user correct the path
+    field.value = file.name;
+    field.title = 'Could not upload — enter full server path manually';
+    alert(`Could not upload file to server: ${e.message}\nPlease enter the full server-side path manually.`);
+  }
+}
+
 async function runTargetedWrite() {
   const device = getSelectedDevice();
   if (!device) return;
-  const ruh       = parseInt(document.getElementById('tw-ruh').value)       || 0;
-  const numWrites = parseInt(document.getElementById('tw-num-writes').value) || 10;
-  const dataFile  = document.getElementById('tw-data-file').value.trim() || '/dev/zero';
-  const btn       = document.getElementById('tw-run-btn');
-  const status    = document.getElementById('tw-status');
-  const resultBox = document.getElementById('tw-result');
+  const ruh        = parseInt(document.getElementById('tw-ruh').value)        || 0;
+  const numWrites  = parseInt(document.getElementById('tw-num-writes').value) || 10;
+  const dataSize   = parseInt(document.getElementById('tw-data-size').value)  || 4096;
+  const blockCount = parseInt(document.getElementById('tw-block-count').value)|| 1;
+  const startLbaEl = document.getElementById('tw-start-lba').value.trim();
+  const startLba   = startLbaEl !== '' ? parseInt(startLbaEl) : null;
+  const dataFile   = document.getElementById('tw-data-file').value.trim() || '/dev/zero';
+  const fua        = document.getElementById('tw-fua')?.checked ?? false;
+  const btn        = document.getElementById('tw-run-btn');
+  const status     = document.getElementById('tw-status');
+  const resultBox  = document.getElementById('tw-result');
 
   btn.disabled = true; btn.textContent = '⏳ Running…';
   status.textContent = 'Sending writes…';
   resultBox.style.display = 'none';
 
   try {
+    const payload = { device, ruh, num_writes: numWrites,
+                      data_size: dataSize, block_count: blockCount,
+                      data_file: dataFile, fua };
+    if (startLba !== null) payload.start_lba = startLba;
     const r = await fetch('/api/ctrl/targeted-write', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ device, ruh, num_writes: numWrites, data_file: dataFile })
+      body: JSON.stringify(payload)
     }).then(x => x.json());
 
     if (r.error) {
@@ -2047,133 +2465,1076 @@ async function ctrlExtractFDPConfig() {
       body: JSON.stringify({device})
     }).then(x => x.json());
 
-    if (r.error) {
-      alert('Error: ' + r.error);
-      return;
-    }
+    if (r.error) { alert('Error: ' + r.error); return; }
 
-    // ── Timestamp + subtitle ─────────────────────────────────────────────
     document.getElementById('fdp-cfg-subtitle').textContent = device;
     document.getElementById('fdp-cfg-ts').textContent =
       'Captured: ' + (r.captured_at ? new Date(r.captured_at).toLocaleString() : '—');
 
-    // ── Build modal body ─────────────────────────────────────────────────
     const body = document.getElementById('fdp-cfg-body');
     body.innerHTML = '';
+    body.style.cssText = 'flex-direction:column;padding:12px 16px;gap:10px;overflow:hidden;max-height:calc(90vh - 110px)';
 
-    const grid = document.createElement('div');
-    grid.className = 'fdp-cfg-grid';
+    // Store response on window so onFDPItemClick can access it
+    window._fdpLastResponse = r;
 
-    // Helper: create a card
-    function card(title, full = false) {
-      const c = document.createElement('div');
-      c.className = 'fdp-cfg-card' + (full ? ' full' : '');
-      const t = document.createElement('div');
-      t.className = 'fdp-cfg-card-title';
-      t.textContent = title;
-      c.appendChild(t);
-      return c;
-    }
+    // ── Layout: diagram (full width) + hidden detail pane ─────────────────
+    const layout = document.createElement('div');
+    layout.className = 'fdp-cfg-layout';
+    layout.style.flex = '1';
+    layout.style.minHeight = '0';
 
-    // Helper: key-value row
-    function kvRow(key, val, valClass = '') {
-      const row = document.createElement('div');
-      row.className = 'fdp-cfg-row';
-      row.innerHTML = `<span class="fdp-cfg-key">${escHtml(key)}</span>`
-                    + `<span class="fdp-cfg-val ${valClass}">${escHtml(String(val ?? '—'))}</span>`;
-      return row;
-    }
+    // Diagram pane — takes full width by default
+    const diagPane = document.createElement('div');
+    diagPane.className = 'fdp-cfg-diagram-pane';
+    diagPane.id = 'fdp-diag-pane';
+    const labelRow = document.createElement('div');
+    labelRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:2px';
+    const diagLabel = document.createElement('div');
+    diagLabel.className = 'fdp-diagram-label';
+    diagLabel.textContent = 'FDP Hierarchy  ·  Click any item for details';
+    const refreshBtn = document.createElement('button');
+    refreshBtn.className = 'btn btn-ghost btn-sm';
+    refreshBtn.style.fontSize = '11px';
+    refreshBtn.textContent = '↺ Refresh';
+    refreshBtn.title = 'Re-fetch fdp status for all namespaces and redraw the hierarchy';
+    refreshBtn.onclick = () => refreshFDPDiagram(refreshBtn);
+    labelRow.appendChild(diagLabel);
+    labelRow.appendChild(refreshBtn);
+    diagPane.appendChild(labelRow);
+    const diagEl = buildFDPDiagram(r);
+    const wrapper = document.createElement('div');
+    wrapper.id = 'fdp-diagram-wrapper';
+    wrapper.appendChild(diagEl);
+    diagPane.appendChild(wrapper);
 
-    // ── Card 1: FDP Enable State ─────────────────────────────────────────
-    const c1 = card('FDP Enable State');
-    const enabledVal  = r.fdp_enabled === true  ? 'ENABLED'
-                      : r.fdp_enabled === false ? 'DISABLED'
-                      : 'Unknown';
-    const enabledCls  = r.fdp_enabled === true  ? 'ok'
-                      : r.fdp_enabled === false ? 'err'
-                      : 'warn';
-    c1.appendChild(kvRow('FDP Status', enabledVal, enabledCls));
+    // Detail pane — hidden until an item is clicked
+    const detailPane = document.createElement('div');
+    detailPane.id = 'fdp-detail-pane';
+    const detailInner = document.createElement('div');
+    detailInner.id = 'fdp-detail-inner';
+    detailPane.appendChild(detailInner);
 
-    if (r.fdp_feature && typeof r.fdp_feature === 'object') {
-      for (const [k, v] of Object.entries(r.fdp_feature)) {
-        c1.appendChild(kvRow(k, v));
-      }
-    }
-    grid.appendChild(c1);
+    layout.appendChild(diagPane);
+    layout.appendChild(detailPane);
+    body.appendChild(layout);
 
-    // ── Card 2: RUHS Summary ──────────────────────────────────────────────
-    const c2 = card('Reclaim Unit Handles');
-    c2.appendChild(kvRow('Total Handles', r.n_ruhs ?? '—',
-                          r.n_ruhs > 0 ? 'ok' : 'warn'));
-
-    if (Array.isArray(r.ruhs) && r.ruhs.length > 0) {
-      const tbl = document.createElement('table');
-      tbl.className = 'ruhs-table';
-      tbl.innerHTML = '<thead><tr><th>RUHID</th><th>RUAMW</th></tr></thead>';
-      const tb = document.createElement('tbody');
-      r.ruhs.forEach(h => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${escHtml(String(h.ruhid ?? '?'))}</td>`
-                     + `<td>${escHtml(String(h.ruamw ?? '—'))}</td>`;
-        tb.appendChild(tr);
-      });
-      tbl.appendChild(tb);
-      c2.appendChild(tbl);
-    } else {
-      c2.appendChild(kvRow('Handles', 'None / unavailable', 'warn'));
-    }
-    grid.appendChild(c2);
-
-    // ── Card 3: FDP Configs (condensed) ──────────────────────────────────
-    const c3 = card('FDP Configurations');
-    if (r.fdp_configs && typeof r.fdp_configs === 'object') {
-      const flat = flattenObj(r.fdp_configs, '', 3);  // max depth 3
-      for (const [k, v] of Object.entries(flat).slice(0, 12)) {
-        c3.appendChild(kvRow(k, v));
-      }
-      if (Object.keys(flat).length > 12)
-        c3.appendChild(kvRow('…', `(${Object.keys(flat).length - 12} more fields)`,'warn'));
-    } else {
-      c3.appendChild(kvRow('Status', 'Not available', 'warn'));
-    }
-    grid.appendChild(c3);
-
-    // ── Card 4: FDP Stats (condensed) ────────────────────────────────────
-    const c4 = card('FDP Statistics');
-    if (r.fdp_stats && typeof r.fdp_stats === 'object') {
-      const flat = flattenObj(r.fdp_stats, '', 2);
-      for (const [k, v] of Object.entries(flat).slice(0, 8)) {
-        c4.appendChild(kvRow(k, v));
-      }
-    } else {
-      c4.appendChild(kvRow('Status', 'Not available', 'warn'));
-    }
-    grid.appendChild(c4);
-
-    // ── Card 5: Commands issued (full width) ──────────────────────────────
-    const c5 = card('Commands Issued', true);
-    (r.commands || []).forEach(cmd => {
-      const row = document.createElement('div');
-      row.className = 'fdp-cfg-cmd-row';
-      const badge = `<span class="fdp-cfg-badge ${cmd.ok ? 'ok' : 'err'}">${cmd.ok ? 'OK' : `RC ${cmd.rc}`}</span>`;
-      const stderr = cmd.stderr ? ` <span style="color:var(--red);font-size:9px">${escHtml(cmd.stderr.slice(0,80))}</span>` : '';
-      row.innerHTML = badge
-        + `<span class="fdp-cfg-cmd-text" title="${escHtml(cmd.cmd)}">${escHtml(cmd.cmd)}</span>`
-        + stderr;
-      c5.appendChild(row);
-    });
-    grid.appendChild(c5);
-
-    body.appendChild(grid);
     openModal('fdp-config-modal');
 
-  } catch (e) {
+  } catch(e) {
     console.error('ctrlExtractFDPConfig error:', e);
     alert('Extract FDP Config failed: ' + e.message);
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '🔬 Extract DUT FDP Config'; }
+    if (btn) { btn.disabled = false; btn.textContent = '🔬 FDP Info and Control'; }
   }
 }
+
+function fmtBytes(n) {
+  n = Number(n);
+  if (!n || isNaN(n)) return '0 B';
+  const units = ['B','KB','MB','GB','TB'];
+  let i = 0;
+  while (n >= 1024 && i < units.length-1) { n /= 1024; i++; }
+  return `${n.toFixed(i?1:0)} ${units[i]}`;
+}
+
+async function refreshFDPDiagram(btn) {
+  const device = getSelectedDevice();
+  if (!device) { alert('Select a device first.'); return; }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Refreshing…'; }
+  try {
+    const r = await fetch('/api/ctrl/extract-fdp-config', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({device})
+    }).then(x => x.json());
+    if (r.error) { alert('Refresh failed: ' + r.error); return; }
+    window._fdpLastResponse = r;
+    // Rebuild just the diagram inside the wrapper
+    const wrapper = document.getElementById('fdp-diagram-wrapper');
+    if (wrapper) {
+      wrapper.innerHTML = '';
+      wrapper.appendChild(buildFDPDiagram(r));
+    }
+    document.getElementById('fdp-cfg-ts').textContent =
+      'Refreshed: ' + new Date().toLocaleString();
+    // Re-fetch live stats/usage if the RG detail pane is open
+    const _di = document.getElementById('fdp-detail-inner');
+    if (_di && _di.dataset.currentType === 'reclaim-group') {
+      onFDPItemClick('reclaim-group', '{}', null);
+    }
+  } catch(e) {
+    alert('Refresh failed: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '↺ Refresh'; }
+  }
+}
+
+function resolveLbaSz(nsData) {
+  // nvme-cli may use "lbafs" or "lbaf" as the container key.
+  // Prefer the entry marked in_use=1; fall back to flbas index match.
+  const flbasRaw = nsData.flbas ?? 0;
+  const flbasIdx = (typeof flbasRaw === 'object') ? 0 : (parseInt(flbasRaw) & 0xF);
+  const list = nsData.lbafs || nsData.lbaf || [{}];
+  let entry = list.find(e => e && e.in_use == 1);
+  if (!entry) entry = list.find(e => e && parseInt(e.lbaf ?? -1) === flbasIdx);
+  if (!entry) entry = list[flbasIdx] || list[0] || {};
+  return 1 << parseInt(entry.ds ?? 9);
+}
+
+function buildFDPDiagram(r) {
+  // Build an HTML-based nested-box diagram matching the hierarchy sketch:
+  // Outer: Drive / Endurance Group
+  //   Inner: Reclaim Group
+  //     NS boxes (green border, stacked) — one per namespace
+  //     PID→RUH rows (PID box + arrow + coloured RUH bar) — one per RUH
+
+  const cfg0   = (r.fdp_configs?.configs || r.fdp_configs?.configurations || [])[0] || {};
+  const runs   = cfg0.runs || 0;
+  const nsList = (r.namespaces && r.namespaces.length)
+    ? r.namespaces : [{ nsid: 1, id_ns: r.id_ns || {} }];
+
+  // Drive capacity from id-ctrl tnvmcap (total NVM capacity in bytes).
+  // Fall back to summing namespace sizes only if tnvmcap is absent.
+  const tnvmcap    = r.id_ctrl?.tnvmcap ?? r.id_ctrl?.tnvmcap;
+  let   driveSzStr;
+  if (tnvmcap && Number(tnvmcap) > 0) {
+    driveSzStr = fmtBytes(Number(tnvmcap));
+  } else {
+    const firstNsData = nsList[0]?.id_ns || {};
+    const firstLbaSz  = resolveLbaSz(firstNsData);
+    const totalNsze   = nsList.reduce((s, ns) => s + (ns.id_ns?.nsze || 0), 0);
+    driveSzStr = totalNsze ? fmtBytes(totalNsze * firstLbaSz) : '?';
+  }
+
+  function div(cls, style) {
+    const d = document.createElement('div');
+    if (cls)   d.className = cls;
+    if (style) d.style.cssText = style;
+    return d;
+  }
+  function txt(tag, content, style) {
+    const e = document.createElement(tag);
+    e.textContent = content;
+    if (style) e.style.cssText = style;
+    return e;
+  }
+
+  // ── Outer container: Drive / Endurance Group ──────────────────────────────
+  const outer = div('', `
+    background: #090b11;
+    border: 2px solid #555;
+    border-radius: 8px;
+    padding: 16px 16px 16px;
+    font-family: 'Cascadia Code','Fira Code',monospace;
+    user-select: none;
+    cursor: pointer;
+  `);
+  outer.title = 'Drive / Endurance Group — click to view details';
+  outer.dataset.fdpType = 'endurance-group';
+  outer.dataset.fdpData = JSON.stringify({ size: driveSzStr, configs: cfg0 });
+  outer.addEventListener('click', e => {
+    // Fire if the click landed on the outer box itself OR on the label area,
+    // but NOT if it bubbled up from a more specific item inside the RG box.
+    const deepType = e.target.closest('[data-fdp-type]')?.dataset?.fdpType;
+    if (!deepType || deepType === 'endurance-group') {
+      onFDPItemClick('endurance-group', outer.dataset.fdpData, e);
+      e.stopPropagation();
+    }
+  });
+
+  // Drive capacity + EG label row — give it extra vertical padding so the
+  // top strip of the outer box is generously clickable
+  const egLabel = div('', 'text-align:center;margin-bottom:12px;padding:6px 0 4px;pointer-events:none;');
+  egLabel.appendChild(txt('div', `Drive Capacity: ${driveSzStr}`,
+    'color:#c8d3e0;font-size:11px;'));
+  egLabel.appendChild(txt('div', 'Endurance Group 1',
+    'color:#8899ff;font-size:11px;font-weight:bold;margin-top:2px;'));
+  outer.appendChild(egLabel);
+
+  // ── Reclaim Group box ─────────────────────────────────────────────────────
+  const rg = div('', `
+    border: 2px solid #3d4580;
+    border-radius: 6px;
+    padding: 14px 14px 14px;
+    background: #0d1020;
+    cursor: pointer;
+  `);
+  rg.title = 'Reclaim Group — click to view FDP stats & usage';
+  rg.dataset.fdpType = 'reclaim-group';
+  rg.dataset.fdpData = JSON.stringify({ nruh: (r.ruhs||[]).length, runs });
+  rg.addEventListener('click', e => {
+    // Fire if the click landed directly on the RG box or its label, but NOT
+    // if it came from a NS box, PID box, or RUH bar inside it.
+    const deepType = e.target.closest('[data-fdp-type]')?.dataset?.fdpType;
+    if (!deepType || deepType === 'reclaim-group') {
+      onFDPItemClick('reclaim-group', rg.dataset.fdpData, e);
+      e.stopPropagation();
+    }
+  });
+  // Label gets pointer-events:none so clicks on it still reach the rg listener
+  rg.appendChild(txt('div', 'Reclaim Group 0',
+    'color:#6677ff;font-size:10.5px;font-weight:bold;text-align:center;margin-bottom:12px;pointer-events:none;'));
+
+  // ── Namespace boxes + their own PID→RUH rows (per namespace) ───────────
+  nsList.forEach((nsEntry, nsIdx) => {
+    const nsData = nsEntry.id_ns || {};
+    const nsid   = nsEntry.nsid;
+    const nsRuhs = nsEntry.ruhs || [];
+    const lbaSz  = resolveLbaSz(nsData);
+    const nsze   = nsData.nsze || 0;
+    const szGB   = nsze ? (nsze * lbaSz / 1e9).toFixed(1) : '?';
+    // FDP status: use controller-level fdp_enabled as the authoritative source.
+    // id-ns nsfeat bit 4 reflects per-NS FDP but is unreliable across nvme-cli
+    // versions — the get-feature FID 0x1D result (r.fdp_enabled) is definitive.
+    const fdpBit = r.fdp_enabled === true;
+
+    // Namespace box
+    const nsBox = div('', `
+      border: 2px solid #22c55e;
+      border-radius: 5px;
+      padding: 6px 10px;
+      margin-bottom: 8px;
+      background: #0a1a10;
+      cursor: pointer;
+      transition: background 0.15s;
+    `);
+    nsBox.title = `NSID ${nsid}`;
+    nsBox.dataset.fdpType = 'namespace';
+    nsBox.dataset.fdpData = JSON.stringify({ nsid, szGB, lbaSz, fdp: fdpBit, raw: nsData });
+    nsBox.addEventListener('mouseenter', () => nsBox.style.background = '#0e2418');
+    nsBox.addEventListener('mouseleave', () => nsBox.style.background = '#0a1a10');
+    nsBox.addEventListener('click', e => {
+      onFDPItemClick('namespace', nsBox.dataset.fdpData, e);
+      e.stopPropagation();
+    });
+    nsBox.appendChild(txt('div', `NSID: ${nsid}`,
+      'color:#22c55e;font-size:10.5px;font-weight:bold'));
+    nsBox.appendChild(txt('div', `${szGB} GB  ·  ${lbaSz} B LBA  ·  FDP: ${fdpBit?'Yes':'No'}`,
+      'color:#88c0a0;font-size:9.5px;margin-top:2px'));
+    // Surface RUHS fetch error if present
+    if (nsEntry.ruhs_rc !== undefined && nsEntry.ruhs_rc !== 0) {
+      nsBox.appendChild(txt('div',
+        `⚠ RUHS rc=${nsEntry.ruhs_rc}: ${nsEntry.ruhs_err||''}`,
+        'color:#ef4444;font-size:9px;margin-top:2px'));
+    }
+    rg.appendChild(nsBox);
+
+    // PID → RUH rows for this namespace
+    // Use runs (Reclaim Unit Nominal Size) / lbaSz as the fixed maximum ruamw
+    // baseline so pct reflects true absolute remaining capacity, not just
+    // capacity relative to the current highest peer.
+    const ruamwBaseline = (runs > 0 && lbaSz > 0)
+      ? Math.round(runs / lbaSz)
+      : Math.max(...nsRuhs.map(h => h.ruamw || 0), 1);
+    nsRuhs.forEach((ruh, i) => {
+      const pct      = ruamwBaseline > 0 ? (ruh.ruamw || 0) / ruamwBaseline : 0;
+      // Snap fill display to nearest 5% interval
+      const pctSnapped = Math.round(pct * 20) / 20;   // 20 steps = 5% each
+      // Colour bands: ≥70% green, 30–65% yellow, ≤25% red
+      const barColor = pct >= 0.70 ? '#22c55e' : pct >= 0.30 ? '#eab308' : '#ef4444';
+      const ruhid    = ruh.ruhid ?? i;
+      const pid      = ruh.pid ?? i;
+
+      // ── RUH update counter (inferred from ruamw rising) ───────────────────
+      const ruKey   = `fdp_ruh_updates_ns${nsid}_ruh${ruhid}`;
+      const prevKey = `fdp_ruh_prev_ruamw_ns${nsid}_ruh${ruhid}`;
+      let updateCount = 0;
+      try {
+        const prevRuamw = parseFloat(localStorage.getItem(prevKey));
+        updateCount     = parseInt(localStorage.getItem(ruKey) || '0');
+        if (!isNaN(prevRuamw) && ruh.ruamw !== undefined && ruh.ruamw > prevRuamw) {
+          // ruamw went up — RUH was recycled to a fresh one
+          updateCount++;
+          localStorage.setItem(ruKey, String(updateCount));
+        }
+        if (ruh.ruamw !== undefined)
+          localStorage.setItem(prevKey, String(ruh.ruamw));
+      } catch(_e) { /* localStorage unavailable */ }
+
+      const row = div('', 'display:flex;align-items:center;gap:8px;margin-bottom:7px');
+
+      const pidBox = div('', `
+        border: 1px solid #c8d3e0;
+        border-radius: 3px;
+        padding: 3px 8px;
+        min-width: 52px;
+        text-align: center;
+        background: #121620;
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: border-color 0.15s;
+      `);
+      pidBox.title = `Placement ID ${pid}`;
+      pidBox.dataset.fdpType = 'pid';
+      pidBox.dataset.fdpData = JSON.stringify({ pid, ruhid, nsid, earutr: ruh.earutr, updateCount });
+      pidBox.appendChild(txt('span', `PID ${pid}`, 'color:#c8d3e0;font-size:9.5px'));
+      pidBox.addEventListener('mouseenter', () => pidBox.style.borderColor = '#55aaff');
+      pidBox.addEventListener('mouseleave', () => pidBox.style.borderColor = '#c8d3e0');
+      pidBox.addEventListener('click', e => {
+        onFDPItemClick('pid', pidBox.dataset.fdpData, e);
+        e.stopPropagation();
+      });
+
+      const arrow = txt('span', '→', 'color:#555;font-size:12px;flex-shrink:0');
+
+      const ruhWrap = div('', 'flex:1;position:relative;cursor:pointer');
+      const ruamwAbs = ruh.ruamw !== undefined
+        ? `${(ruh.ruamw/1000).toFixed(1)}k / ${(ruamwBaseline/1000).toFixed(1)}k blocks remaining` : '';
+      ruhWrap.title = `RUH ${ruhid}  ·  ${ruamwAbs}  ·  ${(pct*100).toFixed(1)}% remaining`;
+      ruhWrap.dataset.fdpType = 'ruh';
+      ruhWrap.dataset.fdpData = JSON.stringify({ ruhid, pid, nsid, ruamw: ruh.ruamw, earutr: ruh.earutr, pct, updateCount });
+      ruhWrap.addEventListener('click', e => {
+        onFDPItemClick('ruh', ruhWrap.dataset.fdpData, e);
+        e.stopPropagation();
+      });
+
+      const track = div('', `
+        width:100%;height:22px;
+        background:#1a1f3a;
+        border:1px solid #2d3460;
+        border-radius:3px;
+        overflow:hidden;
+        position:relative;
+      `);
+      const fill = div('', `
+        height:100%;
+        width:${Math.round(pctSnapped*100)}%;
+        background:${barColor};
+        border-radius:2px 0 0 2px;
+        transition:width 0.3s ease;
+      `);
+      const ruhLabel = div('', `
+        position:absolute;top:0;left:0;right:0;bottom:0;
+        display:flex;align-items:center;justify-content:center;
+        font-family:'Cascadia Code','Fira Code',monospace;
+        font-size:9.5px;color:rgba(255,255,255,0.85);pointer-events:none;
+      `);
+      ruhLabel.textContent = `RUH ${ruhid}`;
+      track.appendChild(fill);
+      track.appendChild(ruhLabel);
+      ruhWrap.appendChild(track);
+
+      row.appendChild(pidBox);
+      row.appendChild(arrow);
+      row.appendChild(ruhWrap);
+      rg.appendChild(row);
+    });
+
+    // Divider between namespaces
+    if (nsIdx < nsList.length - 1)
+      rg.appendChild(div('', 'height:10px;border-bottom:1px solid #1a2040;margin-bottom:10px'));
+  });
+  outer.appendChild(rg);
+  return outer;
+}
+
+async function fdpToggleConfirm(device, enable, currentState, labelEl, trackEl) {
+  const action  = enable ? 'ENABLE' : 'DISABLE';
+  const warning = enable
+    ? 'Enabling FDP will:\n  • Delete all namespaces\n  • Re-create them with FDP active\n  • This is a destructive operation.'
+    : 'Disabling FDP will:\n  • Delete all namespaces\n  • Re-create them without FDP\n  • All FDP statistics and events will be cleared.';
+  if (!confirm(`⚠ Confirm FDP ${action}
+
+${warning}
+
+Device: ${device || '(from dropdown)'}
+
+Continue?`)) return;
+  await fdpToggleExecute(device, enable, labelEl, trackEl);
+}
+
+async function fdpToggleUnknown(device, labelEl, trackEl) {
+  const choice = confirm('⚠ FDP State Unknown\n\nThe current FDP enable state could not be determined.\n\nClick OK to ENABLE FDP, or Cancel to DISABLE FDP.\n\nWarning: this will delete and re-create all namespaces.\nDevice: ' + (device || '(from dropdown)'));
+  await fdpToggleExecute(device, choice, labelEl, trackEl);
+}
+
+async function fdpToggleExecute(device, enable, labelEl, trackEl) {
+  const dev = device || getSelectedDevice() || '';
+  if (!dev) { alert('No device selected. Select a namespace device from the dropdown first.'); return; }
+
+  // Strip namespace suffix to get controller
+  const ctrlDev = dev.replace(/n\d+$/, '');
+
+  labelEl.textContent = '⏳ Working…';
+  labelEl.style.color = 'var(--muted)';
+  trackEl.style.opacity = '0.4';
+  trackEl.style.pointerEvents = 'none';
+
+  try {
+    const r2 = await fetch('/api/ctrl/toggle-fdp', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ device: ctrlDev, enable, endgrp: 1 })
+    }).then(x => x.json());
+
+    // Update the cached response so the diagram reflects the new state
+    if (window._fdpLastResponse) window._fdpLastResponse.fdp_enabled = r2.fdp_enabled ?? enable;
+
+    const logText = (r2.log || []).join('\n');
+    if (r2.success) {
+      const newState  = enable;
+      const newVal    = newState ? 'ENABLED' : 'DISABLED';
+      const newColor  = newState ? 'var(--green)' : 'var(--red)';
+      labelEl.textContent = `FDP: ${newVal}`;
+      labelEl.style.color = newColor;
+      trackEl.className = 'fdp-toggle-track' + (newState ? ' on' : '');
+      trackEl.style.opacity = '';
+      trackEl.style.pointerEvents = '';
+      alert(`✔ FDP ${newVal} successfully.
+
+Device: ${ctrlDev}
+
+Log:
+${logText}`);
+      refreshDevices();
+    } else {
+      labelEl.textContent = 'FDP: Error';
+      labelEl.style.color = 'var(--red)';
+      trackEl.style.opacity = '';
+      trackEl.style.pointerEvents = '';
+      alert(`✘ FDP toggle failed.
+
+Error: ${r2.error || 'Unknown error'}
+
+Log:
+${logText}`);
+    }
+  } catch(e) {
+    trackEl.style.opacity = '';
+    trackEl.style.pointerEvents = '';
+    alert('Request failed: ' + e.message);
+  }
+}
+
+function onFDPItemClick(type, dataStr, event) {
+  const data = JSON.parse(dataStr);
+  const r    = window._fdpLastResponse || {};
+  const pane = document.getElementById('fdp-detail-pane');
+  const inner = document.getElementById('fdp-detail-inner');
+  if (!pane || !inner) return;
+  inner.dataset.currentType = type;   // track for refresh re-trigger
+
+  // Build detail content
+  inner.innerHTML = '';
+
+  // Header with close button
+  const hdr = document.createElement('div');
+  hdr.className = 'fdp-detail-header';
+  const titleEl = document.createElement('div');
+  titleEl.className = 'fdp-detail-title';
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'fdp-detail-close';
+  closeBtn.textContent = '×';
+  closeBtn.onclick = () => {
+    pane.classList.remove('open');
+  };
+  hdr.appendChild(titleEl);
+  hdr.appendChild(closeBtn);
+  inner.appendChild(hdr);
+
+  const body = document.createElement('div');
+  body.className = 'fdp-detail-body';
+  inner.appendChild(body);
+
+  // Helpers
+  function section(title) {
+    const s = document.createElement('div');
+    s.className = 'fdp-detail-section';
+    if (title) {
+      const t = document.createElement('div');
+      t.className = 'fdp-detail-section-title';
+      t.textContent = title;
+      s.appendChild(t);
+    }
+    body.appendChild(s);
+    return s;
+  }
+  function row(s, k, v, cls='') {
+    const d = document.createElement('div');
+    d.className = 'fdp-detail-row';
+    d.innerHTML = `<span class="fdp-detail-key">${escHtml(String(k))}</span>`
+                + `<span class="fdp-detail-val ${cls}">${escHtml(String(v??'—'))}</span>`;
+    s.appendChild(d);
+  }
+  function fmt(n) { return fmtBytes(n); }
+
+  // ── Per-type content ───────────────────────────────────────────────────────
+  if (type === 'endurance-group') {
+    titleEl.textContent = 'Endurance Group';
+    const cfg0    = (r.fdp_configs?.configs || r.fdp_configs?.configurations || [])[0] || {};
+    const enState = r.fdp_enabled;   // true / false / null(unknown)
+    const enVal   = enState===true?'ENABLED':enState===false?'DISABLED':'Unknown';
+    const enCls   = enState===true?'ok':enState===false?'err':'warn';
+
+    // ── FDP toggle ───────────────────────────────────────────────────────────
+    const toggleRow = document.createElement('div');
+    toggleRow.className = 'fdp-toggle-row';
+    const toggleLabel = document.createElement('div');
+    toggleLabel.className = 'fdp-toggle-label';
+    toggleLabel.textContent = `FDP: ${enVal}`;
+    toggleLabel.style.color = enState===true?'var(--green)':enState===false?'var(--red)':'var(--muted)';
+
+    const track = document.createElement('div');
+    track.className = 'fdp-toggle-track' + (enState===true?' on':'') + (enState===null?' unknown':'');
+    track.title = enState===null ? 'FDP state unknown — click to set manually' : `Click to ${enState?'disable':'enable'} FDP`;
+    const thumb = document.createElement('div');
+    thumb.className = 'fdp-toggle-thumb';
+    track.appendChild(thumb);
+
+    track.addEventListener('click', () => {
+      const device = getSelectedDevice() || '';
+      if (enState === null) {
+        // Unknown state — ask user which action to take
+        fdpToggleUnknown(device, toggleLabel, track);
+      } else {
+        fdpToggleConfirm(device, !enState, enState, toggleLabel, track);
+      }
+    });
+
+    toggleRow.appendChild(toggleLabel);
+    toggleRow.appendChild(track);
+    body.insertBefore(toggleRow, body.firstChild);
+
+    // ── Config rows — find the active FDP configuration ──────────────────────
+    // Active config: bit 7 of fdpa (FDP Configuration Valid) = 1
+    const allCfgs = r.fdp_configs?.configs || r.fdp_configs?.configurations || [];
+    let activeCfg  = null;
+    let activeCfgIdx = 0;
+    allCfgs.forEach((c, idx) => {
+      const fdpa = typeof c.fdpa === 'number' ? c.fdpa
+                 : typeof c.fdpa === 'string' ? parseInt(c.fdpa, 0) : 0;
+      if (fdpa & 0x80) { activeCfg = c; activeCfgIdx = idx; }
+    });
+    // Fall back to first config if none has bit 7 set
+    if (!activeCfg && allCfgs.length) { activeCfg = allCfgs[0]; activeCfgIdx = 0; }
+    const cfg = activeCfg || {};
+
+    // Parse FDPA field
+    const fdpaRaw = typeof cfg.fdpa === 'number' ? cfg.fdpa
+                  : typeof cfg.fdpa === 'string' ? parseInt(cfg.fdpa, 0) : 0;
+    const fdpaHex        = '0x' + fdpaRaw.toString(16).toUpperCase().padStart(2,'0');
+    const fdpaValid      = !!(fdpaRaw & 0x80);  // bit 7: FDP Configuration Valid
+    const fdpaVWC        = !!(fdpaRaw & 0x02);  // bit 1: FDP Volatile Write Cache
+    const fdpaRGIF       = (fdpaRaw & 0x01);    // bit 0: Reclaim Group ID Format (0=flat,1=hierarchical)
+
+    const cfgLabel = allCfgs.length > 1
+      ? `FDP Configuration  (Config ${activeCfgIdx} of ${allCfgs.length - 1}, Active)`
+      : 'FDP Configuration';
+    const s1 = section(cfgLabel);
+    row(s1, 'FDPA',                     fdpaHex);
+    row(s1, '  Bit 7 — Config Valid',   fdpaValid ? 'Yes' : 'No', fdpaValid ? 'ok' : 'warn');
+    row(s1, '  Bit 1 — Volatile WC',    fdpaVWC   ? 'Yes' : 'No');
+    row(s1, '  Bit 0 — RGIF',           fdpaRGIF === 0 ? '0 — Flat' : '1 — Hierarchical');
+    row(s1, 'Reclaim Groups',           cfg.nrg  ?? '—');
+    row(s1, 'RU Handles',               cfg.nruh ?? '—');
+    row(s1, 'RU Size',                  cfg.runs ? fmt(cfg.runs) : '—');
+
+    const s2 = section('Drive');
+    const allNs = r.namespaces || [];
+    row(s2, 'Total Namespaces', allNs.length || '—');
+    row(s2, 'Controller ID',    r.fdp_feature?.cntlid ?? '—');
+
+  } else if (type === 'reclaim-group') {
+    titleEl.textContent = 'Reclaim Group';
+    const cfg0 = (r.fdp_configs?.configs || r.fdp_configs?.configurations || [])[0] || {};
+
+    // ── FDP Statistics (fetched live on every panel open) ─────────────────────
+    const s1 = section('FDP Statistics');
+    const statsLoading = document.createElement('div');
+    statsLoading.style.cssText = 'font-size:10px;color:var(--muted);padding:4px 0';
+    statsLoading.textContent = 'Loading…';
+    s1.appendChild(statsLoading);
+
+    // ── FDP Usage (fetched live on every panel open) ───────────────────────────
+    const s2 = section('FDP Usage');
+    const usageLoading = document.createElement('div');
+    usageLoading.style.cssText = 'font-size:10px;color:var(--muted);padding:4px 0';
+    usageLoading.textContent = 'Loading…';
+    s2.appendChild(usageLoading);
+
+    const s3 = section('Configuration');
+    row(s3, 'Reclaim Groups',   cfg0.nrg  ?? '—');
+    row(s3, 'RU Handles',       cfg0.nruh ?? '—');
+    row(s3, 'RU Size',          cfg0.runs ? fmt(cfg0.runs) : '—');
+
+    // ── Fetch live stats and usage asynchronously ─────────────────────────────
+    const rgDevice = getSelectedDevice() || '';
+    (async () => {
+      // Live FDP Statistics
+      try {
+        const sr = await fetch('/api/ctrl/fdp-stats', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({device: rgDevice, endgrp: 1})
+        }).then(x => x.json());
+        s1.removeChild(statsLoading);
+        if (sr.rc === 0 && sr.data) {
+          const st = sr.data;
+          // Also update the cached response so WAF bars stay current
+          if (window._fdpLastResponse) window._fdpLastResponse.fdp_stats = st;
+          row(s1, 'Host Bytes Written',  fmt(st.hbmw  || 0));
+          row(s1, 'Media Bytes Written', fmt(st.mbmw  || 0));
+          row(s1, 'Media Bytes Erased',  fmt(st.mbe   || 0));
+          if (st.hbmw && st.mbmw && Number(st.hbmw) > 0) {
+            const waf = (Number(st.mbmw) / Number(st.hbmw)).toFixed(3);
+            row(s1, 'WAF', waf, parseFloat(waf)<=1.5?'ok':parseFloat(waf)<=3?'warn':'err');
+          }
+        } else {
+          row(s1, 'Stats', sr.stderr || 'Unavailable', 'warn');
+        }
+      } catch(e) {
+        s1.removeChild(statsLoading);
+        row(s1, 'Stats', 'Fetch error: ' + e.message, 'err');
+      }
+
+      // Live FDP Usage — count active vs unused RUHs
+      try {
+        const ur = await fetch('/api/ctrl/fdp-usage', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({device: rgDevice, endgrp: 1})
+        }).then(x => x.json());
+        s2.removeChild(usageLoading);
+        if (ur.rc === 0 && ur.data) {
+          const ud = ur.data;
+          // nvme fdp usage returns an array of RUH entries; unused ones
+          // have a description containing "(Unused)" in the output.
+          // In JSON the key may be "ruhid", "ruha" (attributes), or similar.
+          // We detect unused by checking ruha == 0 or a description field.
+          // Exhaustively search response for the RUH array —
+          // nvme-cli JSON structure varies by version and device firmware.
+          function _findRuhs(obj) {
+            if (!obj) return [];
+            if (Array.isArray(obj) && obj.length && typeof obj[0]==='object') return obj;
+            for (const k of ['ruhss','ruhs','ruh_status','rhus','entries','items']) {
+              if (Array.isArray(obj[k]) && obj[k].length) return obj[k];
+            }
+            for (const v of Object.values(obj)) {
+              if (v && typeof v==='object') {
+                const found = _findRuhs(v);
+                if (found.length) return found;
+              }
+            }
+            return [];
+          }
+          let ruhs_usage = _findRuhs(ud);
+          // Fallback: use RUH data from fdp status already in _fdpLastResponse
+          // (proven to work on this device) when fdp usage gives no array
+          if (!ruhs_usage.length) {
+            ruhs_usage = (window._fdpLastResponse?.namespaces || [])
+              .flatMap(ns => ns.ruhs || []);
+          }
+          const maxNruh = Number(cfg0.nruh) || ruhs_usage.length || 0;
+          if (ruhs_usage.length) {
+            let inUse = 0, unused = 0;
+            ruhs_usage.forEach(h => {
+              const attrs = h.ruha ?? h.attributes ?? h.ruh_attributes;
+              if (attrs !== undefined) {
+                (parseInt(attrs) & 0x1) ? inUse++ : unused++;
+              } else {
+                JSON.stringify(h).toLowerCase().includes('unused') ? unused++ : inUse++;
+              }
+            });
+            const total = (inUse + unused) || maxNruh;
+            if (inUse === 0 && unused === 0) {
+              row(s2, 'RU Handles', String(ruhs_usage.length));
+            } else {
+              row(s2, 'RUHs In Use', `${inUse} / ${total}`, inUse>0?'ok':'warn');
+              row(s2, 'RUHs Unused', `${unused} / ${total}`, unused>0?'warn':'ok');
+            }
+            if (maxNruh) row(s2, 'Max RUHs (nruh)', maxNruh);
+          } else {
+            row(s2, 'Usage data', 'No RUH data available', 'warn');
+          }
+        } else {
+          row(s2, 'Usage', ur.stderr || 'Unavailable', 'warn');
+        }
+      } catch(e) {
+        s2.removeChild(usageLoading);
+        row(s2, 'Usage', 'Fetch error: ' + e.message, 'err');
+      }
+    })();
+
+  } else if (type === 'namespace') {
+    const nsid   = data.nsid;
+    titleEl.textContent = `Namespace  NSID ${nsid}`;
+    // Find this NS's id_ns data from the stored response
+    const nsEntry = (r.namespaces || []).find(n => n.nsid == nsid) || {};
+    const ns = nsEntry.id_ns || data.raw || {};
+    const lbaSz = resolveLbaSz(ns);
+    // Use controller-level fdp_enabled as the authoritative FDP status
+    const fdpBit = r.fdp_enabled === true;
+    // RUH count for this namespace
+    const nsRuhCount = (nsEntry.ruhs || []).length;
+
+    const s1 = section('Namespace Identity');
+    row(s1, 'NSID',           nsid);
+    row(s1, 'Size',           ns.nsze ? fmt(ns.nsze * lbaSz) : '—');
+    row(s1, 'Capacity',       ns.ncap ? fmt(ns.ncap * lbaSz) : '—');
+    row(s1, 'Utilisation',    ns.nuse ? fmt(ns.nuse * lbaSz) : '—');
+    row(s1, 'LBA Size',       lbaSz + ' B');
+    row(s1, 'FDP Enabled',    fdpBit ? 'Yes' : 'No', fdpBit ? 'ok' : 'warn');
+    row(s1, 'End. Group ID',  ns.endgid ?? '—');
+    row(s1, 'Active RUHs',    nsRuhCount || '—');
+
+    // ── Update RUH button ─────────────────────────────────────────────────
+    if (nsRuhCount > 0) {
+      const ruhsForNs = nsEntry.ruhs || [];
+      const updateSection = section('Reclaim Unit Handle Update');
+
+      // Checkbox grid — one per RUH
+      const cbWrap = document.createElement('div');
+      cbWrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;padding:4px 0 8px';
+      ruhsForNs.forEach((ruh, i) => {
+        const ruhid = ruh.ruhid ?? ruh.id ?? i;
+        const label = document.createElement('label');
+        label.style.cssText = (
+          'display:flex;align-items:center;gap:5px;padding:4px 9px;'
+          +'cursor:pointer;border-radius:4px;font-size:11px;'
+          +'background:var(--surface2);border:1px solid var(--border);'
+          +'user-select:none'
+        );
+        const cb = document.createElement('input');
+        cb.type = 'checkbox'; cb.dataset.ruhid = ruhid;
+        cb.style.cssText = 'width:13px;height:13px;cursor:pointer;accent-color:var(--accent)';
+        const lbl = document.createElement('span');
+        lbl.textContent = `RUH ${ruhid}`;
+        label.appendChild(cb); label.appendChild(lbl);
+        label.addEventListener('mouseenter', () => label.style.borderColor='var(--accent)');
+        label.addEventListener('mouseleave', () => label.style.borderColor='var(--border)');
+        cbWrap.appendChild(label);
+      });
+      updateSection.appendChild(cbWrap);
+
+      // Select All / Clear buttons
+      const selRow = document.createElement('div');
+      selRow.style.cssText = 'display:flex;gap:6px;margin-bottom:8px';
+      const selAll = document.createElement('button');
+      selAll.className = 'btn btn-ghost btn-sm';
+      selAll.style.fontSize = '10px';
+      selAll.textContent = 'Select All';
+      selAll.onclick = () => cbWrap.querySelectorAll('input[type=checkbox]').forEach(c => c.checked=true);
+      const clrAll = document.createElement('button');
+      clrAll.className = 'btn btn-ghost btn-sm';
+      clrAll.style.fontSize = '10px';
+      clrAll.textContent = 'Clear';
+      clrAll.onclick = () => cbWrap.querySelectorAll('input[type=checkbox]').forEach(c => c.checked=false);
+      selRow.appendChild(selAll); selRow.appendChild(clrAll);
+      updateSection.appendChild(selRow);
+
+      // Status line
+      const ruhuStatus = document.createElement('div');
+      ruhuStatus.style.cssText = 'font-size:10px;color:var(--muted);min-height:16px;margin-bottom:6px';
+      updateSection.appendChild(ruhuStatus);
+
+      // Update button
+      const updateBtn = document.createElement('button');
+      updateBtn.className = 'btn btn-primary btn-sm';
+      updateBtn.textContent = '↻ Update RUH';
+      updateBtn.onclick = async () => {
+        const selected = [...cbWrap.querySelectorAll('input[type=checkbox]:checked')]
+          .map(c => parseInt(c.dataset.ruhid));
+        if (!selected.length) {
+          ruhuStatus.textContent = 'Select at least one RUH to update.';
+          ruhuStatus.style.color = 'var(--yellow)';
+          return;
+        }
+        updateBtn.disabled = true;
+        updateBtn.textContent = '⏳ Updating…';
+        ruhuStatus.textContent = `Updating RUH${selected.length>1?'s':''} ${selected.join(', ')}…`;
+        ruhuStatus.style.color = 'var(--muted)';
+        try {
+          const device = getSelectedDevice();
+          const res = await fetch('/api/ctrl/update-ruh', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({device, nsid, ruh_ids: selected})
+          }).then(x => x.json());
+          if (res.error) {
+            ruhuStatus.textContent = '✘ ' + res.error;
+            ruhuStatus.style.color = 'var(--red)';
+          } else {
+            ruhuStatus.textContent = `✓ Updated RUH${selected.length>1?'s':''} ${selected.join(', ')} successfully`;
+            ruhuStatus.style.color = 'var(--green)';
+            // Uncheck all after success
+            cbWrap.querySelectorAll('input[type=checkbox]').forEach(c => c.checked=false);
+          }
+        } catch(e) {
+          ruhuStatus.textContent = '✘ ' + e.message;
+          ruhuStatus.style.color = 'var(--red)';
+        } finally {
+          updateBtn.disabled = false;
+          updateBtn.textContent = '↻ Update RUH';
+        }
+      };
+      updateSection.appendChild(updateBtn);
+    }
+
+  } else if (type === 'ruh' || type === 'pid') {
+    const ruhid = data.ruhid;
+    const pid   = data.pid;
+    titleEl.textContent = type === 'ruh' ? `RUH ${ruhid}` : `Placement ID ${pid}`;
+
+    // Find this RUH from the correct namespace's ruhs list
+    const nsid_for_ruh = data.nsid;
+    const nsEntry_ruh  = (r.namespaces||[]).find(n => n.nsid == nsid_for_ruh) || {};
+    const nsRuhs_click = nsEntry_ruh.ruhs || r.ruhs || [];
+    const ruhEntry = nsRuhs_click.find(h => (h.ruhid ?? h.id) == ruhid) || data;
+    // Use runs-based baseline for the same absolute pct as the diagram bars
+    const cfg0_ruh  = (r.fdp_configs?.configs || r.fdp_configs?.configurations || [])[0] || {};
+    const nsData_ruh = nsEntry_ruh.id_ns || {};
+    const lbaSz_ruh  = resolveLbaSz(nsData_ruh);
+    const ruamwBaseline_ruh = (cfg0_ruh.runs > 0 && lbaSz_ruh > 0)
+      ? Math.round(cfg0_ruh.runs / lbaSz_ruh)
+      : Math.max(...nsRuhs_click.map(h=>h.ruamw||0), 1);
+    const maxRuamw = ruamwBaseline_ruh;
+    const pct      = maxRuamw > 0 ? (ruhEntry.ruamw||0) / maxRuamw : 0;
+    const pctStr   = (pct * 100).toFixed(1) + '%';
+    const capCls   = pct > 0.5 ? 'ok' : pct > 0.2 ? 'warn' : 'err';
+
+    const s1 = section(`RUH Status`);
+    row(s1, 'RUH ID',               ruhid);
+    row(s1, 'Placement ID (PID)',    pid ?? ruhEntry.pid ?? '—');
+    row(s1, 'RUH Updates (inferred)', data.updateCount ?? '—',
+        (data.updateCount > 0) ? 'warn' : '');
+    const capStr = ruhEntry.ruamw !== undefined
+      ? `${(ruhEntry.ruamw/1000).toFixed(1)}k / ${(ruamwBaseline_ruh/1000).toFixed(1)}k blocks`
+      : '—';
+    row(s1, 'Remaining Capacity', capStr, capCls);
+    row(s1, 'Capacity (relative)',  pctStr, capCls);
+    row(s1, 'Est. Active RU Timer', ruhEntry.earutr !== undefined
+      ? `${(ruhEntry.earutr/1000).toFixed(1)}k` : '—');
+    row(s1, 'RU Type (RUHT)',       ruhEntry.ruht ?? '—');
+
+    // ── Shared RUH detection ──────────────────────────────────────────────────
+    // A RUH is shared if multiple namespaces reference the same ruhid.
+    const sharingNsids = (r.namespaces || [])
+      .filter(ns => (ns.ruhs || []).some(h => (h.ruhid ?? h.id) == ruhid))
+      .map(ns => ns.nsid);
+
+    if (sharingNsids.length > 1) {
+      // More than one NS uses this RUH — surface a warning note
+      const sShared = section('⚠ Shared RUH');
+      const noteEl = document.createElement('div');
+      noteEl.style.cssText = (
+        'font-size:10px;line-height:1.6;padding:6px 8px;margin-top:2px;' +
+        'background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.35);' +
+        'border-radius:4px;color:var(--yellow,#f59e0b)'
+      );
+      noteEl.textContent = (
+        `RUH ${ruhid} is shared by ${sharingNsids.length} namespaces: ` +
+        `NSID ${sharingNsids.join(', NSID ')}.`
+      );
+      sShared.appendChild(noteEl);
+      row(sShared, 'Sharing NSIDs', sharingNsids.join(', '), 'warn');
+    }
+
+    if (type === 'pid') {
+      // Add PID usage from fdp_usage if available
+      const pils = r.fdp_usage?.pils || r.fdp_usage?.placement_identifiers || [];
+      const pilEntry = pils.find(p => (p.pid ?? p.id) == pid);
+      if (pilEntry) {
+        const s2 = section('PID Usage');
+        row(s2, 'Bytes Written', fmt(pilEntry.piw ?? pilEntry.written ?? 0));
+      }
+    }
+
+      // ── Update PID button ───────────────────────────────────────────────────────────
+      const sPidUpd = section(`Update PID ${pid}`);
+      const pidUpdStatus = document.createElement('div');
+      pidUpdStatus.style.cssText = 'font-size:10px;color:var(--muted);min-height:16px;margin-bottom:6px';
+      pidUpdStatus.textContent = `Issue RUHU for PID ${pid} on NSID ${data.nsid ?? nsid_for_ruh}.`;
+      sPidUpd.appendChild(pidUpdStatus);
+      const pidUpdBtn = document.createElement('button');
+      pidUpdBtn.className = 'btn btn-primary btn-sm';
+      pidUpdBtn.textContent = `↻ Update PID ${pid}`;
+      pidUpdBtn.onclick = async () => {
+        pidUpdBtn.disabled = true; pidUpdBtn.textContent = '⏳ Updating…';
+        pidUpdStatus.style.color = 'var(--muted)';
+        pidUpdStatus.textContent = `Sending RUHU for PID ${pid}…`;
+        try {
+          const res = await fetch('/api/ctrl/update-ruh', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({device: getSelectedDevice(),
+              nsid: data.nsid ?? nsid_for_ruh, ruh_ids: [pid]})
+          }).then(x => x.json());
+          if (res.error) { pidUpdStatus.textContent = '✘ ' + res.error; pidUpdStatus.style.color = 'var(--red)'; }
+          else { pidUpdStatus.textContent = `✓ PID ${pid} updated successfully`; pidUpdStatus.style.color = 'var(--green)'; }
+        } catch(e) { pidUpdStatus.textContent = '✘ ' + e.message; pidUpdStatus.style.color = 'var(--red)'; }
+        finally { pidUpdBtn.disabled = false; pidUpdBtn.textContent = `↻ Update PID ${pid}`; }
+      };
+      sPidUpd.appendChild(pidUpdBtn);
+
+    if (type === 'ruh') {
+      // ── Helper: small labeled input row ──────────────────────────────────
+      function _fldRow(labelTxt, inputEl) {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:grid;grid-template-columns:110px 1fr;align-items:center;gap:4px;margin-bottom:5px';
+        const lbl = document.createElement('label');
+        lbl.style.cssText = 'font-size:10px;color:var(--muted);font-weight:600';
+        lbl.textContent = labelTxt;
+        row.appendChild(lbl); row.appendChild(inputEl);
+        return row;
+      }
+      function _inp(type2, val, placeholder) {
+        const el = document.createElement('input');
+        el.type = type2; el.value = val; el.placeholder = placeholder || '';
+        el.style.cssText = 'width:100%;font-size:11px;padding:3px 6px;'
+          +'background:var(--surface);border:1px solid var(--border);'
+          +'border-radius:4px;color:var(--text);outline:none';
+        return el;
+      }
+
+      // ── Write section ─────────────────────────────────────────────────────
+      const writePid = pid ?? ruhEntry.pid ?? ruhid;
+      const sWr = section(`Write  (dir-spec = PID ${writePid})`);
+      const wrStartLba   = _inp('text',   '0',    'Start LBA');
+      const wrBlockCount = _inp('number', '0',    'Block count (0 = 1 LBA)');
+      const wrDataSize   = _inp('number', '4096', 'Bytes');
+      const wrDataFile   = _inp('text',   '/dev/zero', 'Path or /dev/zero');
+      const wrFilePicker = document.createElement('input');
+      wrFilePicker.type = 'file'; wrFilePicker.style.display = 'none';
+      wrFilePicker.onchange = async () => {
+        const file = wrFilePicker.files[0]; if (!file) return;
+        const fd = new FormData(); fd.append('file', file);
+        try {
+          const res = await fetch('/api/ctrl/upload-data-file',{method:'POST',body:fd}).then(x=>x.json());
+          if (res.path){wrDataFile.value=res.path;}else alert('Upload failed: '+(res.error||'?'));
+        } catch(e){wrDataFile.value=file.name;}
+      };
+      const wrBrowseBtn = document.createElement('button');
+      wrBrowseBtn.className='btn btn-ghost btn-sm'; wrBrowseBtn.type='button';
+      wrBrowseBtn.style.cssText='font-size:10px;padding:2px 6px;white-space:nowrap;flex-shrink:0';
+      wrBrowseBtn.textContent='📂 Browse';
+      wrBrowseBtn.onclick=()=>wrFilePicker.click();
+      const wrFileRow = document.createElement('div');
+      wrFileRow.style.cssText='display:grid;grid-template-columns:110px 1fr auto;align-items:center;gap:4px;margin-bottom:5px';
+      const wrFileLbl = document.createElement('label');
+      wrFileLbl.style.cssText='font-size:10px;color:var(--muted);font-weight:600';
+      wrFileLbl.textContent='Data File';
+      wrFileRow.appendChild(wrFileLbl); wrFileRow.appendChild(wrDataFile);
+      wrFileRow.appendChild(wrBrowseBtn); wrFileRow.appendChild(wrFilePicker);
+      const wrFuaWrap    = document.createElement('div');
+      wrFuaWrap.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:5px';
+      const wrFuaCb = document.createElement('input');
+      wrFuaCb.type = 'checkbox';
+      wrFuaCb.style.cssText = 'width:13px;height:13px;accent-color:var(--accent)';
+      const wrFuaLbl = document.createElement('span');
+      wrFuaLbl.style.cssText = 'font-size:10px;color:var(--muted)';
+      wrFuaLbl.textContent = 'Force Unit Access (FUA)';
+      wrFuaWrap.appendChild(wrFuaCb); wrFuaWrap.appendChild(wrFuaLbl);
+      sWr.appendChild(_fldRow('Start LBA',    wrStartLba));
+      sWr.appendChild(_fldRow('Block Count',  wrBlockCount));
+      sWr.appendChild(_fldRow('Data Size (B)', wrDataSize));
+      sWr.appendChild(wrFileRow);
+      sWr.appendChild(wrFuaWrap);
+      const wrStatus = document.createElement('div');
+      wrStatus.style.cssText = 'font-size:10px;color:var(--muted);min-height:16px;margin-bottom:6px';
+      sWr.appendChild(wrStatus);
+      const wrBtn = document.createElement('button');
+      wrBtn.className = 'btn btn-primary btn-sm';
+      wrBtn.textContent = '✎ Write';
+      wrBtn.onclick = async () => {
+        wrBtn.disabled = true; wrBtn.textContent = '⏳ Writing…';
+        wrStatus.style.color = 'var(--muted)';
+        wrStatus.textContent = 'Sending write command…';
+        try {
+          const nsidForWr = data.nsid ?? nsid_for_ruh;
+          const res = await fetch('/api/ctrl/targeted-write', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              device:      getSelectedDevice(),
+              ruh:         writePid,
+              num_writes:  1,
+              data_size:   parseInt(wrDataSize.value) || 4096,
+              block_count: parseInt(wrBlockCount.value) || 0,
+              data_file:   wrDataFile.value || '/dev/zero',
+              fua:         wrFuaCb.checked,
+              start_lba:   wrStartLba.value !== '' ? parseInt(wrStartLba.value) : null,
+            })
+          }).then(x => x.json());
+          if (res.error) {
+            wrStatus.textContent = '✘ ' + res.error;
+            wrStatus.style.color = 'var(--red)';
+          } else {
+            wrStatus.textContent = `✓ Write to LBA ${wrStartLba.value} succeeded`;
+            wrStatus.style.color = 'var(--green)';
+          }
+        } catch(e) {
+          wrStatus.textContent = '✘ ' + e.message;
+          wrStatus.style.color = 'var(--red)';
+        } finally {
+          wrBtn.disabled = false; wrBtn.textContent = '✎ Write';
+        }
+      };
+      sWr.appendChild(wrBtn);
+
+      // ── Read section ──────────────────────────────────────────────────────
+      const sRd = section('Read from Namespace');
+      sRd.style.marginTop = '14px';
+      sRd.style.paddingTop = '10px';
+      sRd.style.borderTop = '1px solid var(--border)';
+      const rdStartBlock  = _inp('text',   '0',    'Start LBA');
+      const rdBlockCount  = _inp('number', '0',    'Block count (0 = 1 LBA)');
+      const rdBlockSize   = _inp('number', '4096', 'Bytes per block');
+      const rdDataSize    = _inp('number', '4096', 'Total bytes to read');
+      sRd.appendChild(_fldRow('Start Block',   rdStartBlock));
+      sRd.appendChild(_fldRow('Block Count',   rdBlockCount));
+      sRd.appendChild(_fldRow('Block Size (B)', rdBlockSize));
+      sRd.appendChild(_fldRow('Data Size (B)', rdDataSize));
+      const rdStatus = document.createElement('div');
+      rdStatus.style.cssText = 'font-size:10px;color:var(--muted);min-height:16px;margin-bottom:6px';
+      sRd.appendChild(rdStatus);
+      const rdPreview = document.createElement('div');
+      rdPreview.style.cssText = 'display:none;font-size:10px;font-family:monospace;'
+        +'word-break:break-all;background:var(--surface);border:1px solid var(--border);'
+        +'border-radius:4px;padding:5px 8px;margin-bottom:6px;color:var(--muted);max-height:72px;overflow-y:auto';
+      sRd.appendChild(rdPreview);
+      const rdBtn = document.createElement('button');
+      rdBtn.className = 'btn btn-primary btn-sm';
+      rdBtn.textContent = '▶ Read';
+      rdBtn.onclick = async () => {
+        rdBtn.disabled = true; rdBtn.textContent = '⏳ Reading…';
+        rdStatus.style.color = 'var(--muted)';
+        rdStatus.textContent = 'Sending read command…';
+        rdPreview.style.display = 'none';
+        try {
+          const nsidForRd = data.nsid ?? nsid_for_ruh;
+          const res = await fetch('/api/ctrl/ruh-read', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              device:      getSelectedDevice(),
+              nsid:        nsidForRd,
+              start_block: rdStartBlock.value,
+              block_count: parseInt(rdBlockCount.value) || 0,
+              block_size:  parseInt(rdBlockSize.value)  || 4096,
+              data_size:   parseInt(rdDataSize.value)   || 4096,
+            })
+          }).then(x => x.json());
+          if (res.error) {
+            rdStatus.textContent = '✘ ' + res.error;
+            rdStatus.style.color = 'var(--red)';
+          } else {
+            rdStatus.textContent = `✓ Read ${res.bytes_read} bytes from LBA ${rdStartBlock.value}`;
+            rdStatus.style.color = 'var(--green)';
+            if (res.preview_hex) {
+              rdPreview.style.display = '';
+              rdPreview.textContent = res.preview_hex;
+            }
+          }
+        } catch(e) {
+          rdStatus.textContent = '✘ ' + e.message;
+          rdStatus.style.color = 'var(--red)';
+        } finally {
+          rdBtn.disabled = false; rdBtn.textContent = '▶ Read';
+        }
+      };
+      sRd.appendChild(rdBtn);
+    }
+  }
+
+  // Open panel
+  pane.classList.add('open');
+}
+
+
+
 
 // Flatten a nested object to dot-notation keys up to maxDepth levels deep
 function flattenObj(obj, prefix = '', maxDepth = 3, depth = 0) {
@@ -2288,7 +3649,22 @@ async function submitDeleteNS() {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({device, nsids})
     }).then(x => x.json());
+    // Clear stored RUH update counters for the deleted NSIDs
+    try {
+      nsids.forEach(nsid => {
+        for (let ruh = 0; ruh < 64; ruh++) {
+          localStorage.removeItem(`fdp_ruh_updates_ns${nsid}_ruh${ruh}`);
+          localStorage.removeItem(`fdp_ruh_prev_ruamw_ns${nsid}_ruh${ruh}`);
+        }
+      });
+    } catch(_e) {}
     closeModal('delete-ns-modal');
+    // Also clear any remaining update counters not covered by per-nsid loop
+    try {
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('fdp_ruh_'))
+        .forEach(k => localStorage.removeItem(k));
+    } catch(_e) {}
     const lines = [{text:`Device: ${device}`,cls:'hd'},{text:''}];
     if (r.error) { lines.push({text:'\u2718 '+r.error,cls:'err'}); }
     else {
@@ -2307,37 +3683,45 @@ async function submitDeleteNS() {
 }
 
 function openCreateNSModal() {
-  if (!getSelectedDevice()) return alert('Select a device first.');
+  // Pre-fill controller device from dropdown, stripping namespace suffix
+  const sel = getSelectedDevice();
+  const ctrlEl = document.getElementById('ns-ctrl-dev');
+  if (ctrlEl && !ctrlEl.value) {
+    ctrlEl.value = sel ? sel.replace(/n\d+$/, '') : '';
+  }
   updateCmdPreview();
   openModal('create-ns-modal');
 }
 
-['ns-size','ns-cap','ns-flbas','ns-phndls','ns-ruhs','ns-endg','ns-nmic'].forEach(id => {
+['ns-size','ns-cap','ns-block-size','ns-phndls','ns-ruhs','ns-endg','ns-ctrl-dev'].forEach(id => {
   document.getElementById(id)?.addEventListener('input', updateCmdPreview);
 });
 
 function updateCmdPreview() {
-  const dev   = getSelectedDevice() || '<device>';
-  const size  = document.getElementById('ns-size').value  || '?';
-  const cap   = document.getElementById('ns-cap').value   || '?';
-  const flbas = document.getElementById('ns-flbas').value || '0';
-  const phndls = document.getElementById('ns-phndls').value || '0';
-  const ruhs   = document.getElementById('ns-ruhs').value   || '?';
-  const endg   = document.getElementById('ns-endg').value   || '0';
-  const nmic   = document.getElementById('ns-nmic').value   || '0';
+  const ctrlDev = document.getElementById('ns-ctrl-dev')?.value.trim() || '<device>';
+  const size    = document.getElementById('ns-size').value    || '?';
+  const cap     = document.getElementById('ns-cap').value     || '?';
+  const bsize   = document.getElementById('ns-block-size').value || '4096';
+  const phndls  = document.getElementById('ns-phndls').value  || '0';
+  const ruhs    = document.getElementById('ns-ruhs').value    || '?';
+  const endg    = document.getElementById('ns-endg').value    || '0';
   document.getElementById('cmd-preview').textContent =
-    `# Step 1 — Create\nnvme create-ns ${dev} \\\n` +
+    `# Step 1 — Create\nnvme create-ns ${ctrlDev} \\\n` +
     `  --nsze=${size} --ncap=${cap} \\\n` +
-    `  --flbas=${flbas} --nmic=${nmic} \\\n` +
+    `  --block-size=${bsize} \\\n` +
     `  --endg-id=${endg} --nphndls=${ruhs} \\\n` +
     `  --phndls=${phndls}\n\n` +
-    `# Step 2 — Attach\nnvme attach-ns ${dev} \\\n` +
+    `# Step 2 — Attach\nnvme attach-ns ${ctrlDev} \\\n` +
     `  --namespace-id=<new-nsid> --controllers=0x1`;
 }
 
 async function submitCreateNS() {
-  const device = getSelectedDevice();
-  if (!device) return;
+  const ctrlDev = document.getElementById('ns-ctrl-dev')?.value.trim();
+  if (!ctrlDev) {
+    document.getElementById('ns-ctrl-dev').classList.add('error');
+    return alert('Please enter a controller device (e.g. /dev/nvme0).');
+  }
+  document.getElementById('ns-ctrl-dev').classList.remove('error');
   let valid = true;
   ['ns-size','ns-cap','ns-ruhs'].forEach(id => {
     const el = document.getElementById(id);
@@ -2347,11 +3731,10 @@ async function submitCreateNS() {
   if (!valid) return;
 
   const params = {
-    device,
+    device: ctrlDev,
     nsze:    parseInt(document.getElementById('ns-size').value),
     ncap:    parseInt(document.getElementById('ns-cap').value),
-    flbas:   parseInt(document.getElementById('ns-flbas').value),
-    nmic:    parseInt(document.getElementById('ns-nmic').value),
+    block_size: parseInt(document.getElementById('ns-block-size').value),
     nphndls: parseInt(document.getElementById('ns-ruhs').value),
     phndls:  document.getElementById('ns-phndls').value.trim(),
     endg_id: parseInt(document.getElementById('ns-endg').value),
@@ -2364,20 +3747,548 @@ async function submitCreateNS() {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify(params)
     }).then(x => x.json());
-    closeModal('create-ns-modal');
-    const lines = [{text:`Device: ${device}`,cls:'hd'},{text:''}];
+    const lines = [{text:`Device: ${ctrlDev}`,cls:'hd'},{text:''}];
     if (r.error) {
-      lines.push({text:'✘ '+r.error,cls:'err'});
+      // Keep modal open and show a blocking alert so the error is not missed
+      alert('\u2718 Create Namespace Failed\n\n' + r.error +
+            (r.detail ? '\n\n' + r.detail : ''));
+      lines.push({text:'\u2718 '+r.error,cls:'err'});
       if (r.detail) lines.push({text:r.detail,cls:'mut'});
-    } else {
-      lines.push({text:`✔ Namespace created — NSID: ${r.nsid}`,cls:'ok'},{text:''});
-      if (r.attach_result) lines.push({text:`${r.attach_success?'✔':'✘'} Attach: ${r.attach_result}`,cls:r.attach_success?'ok':'err'});
+      showNSResult('Create Namespace', 'Failed', lines);
+    } else if (!r.attach_success) {
+      // Namespace created but attach failed — warn with alert, keep modal open
+      alert('\u26a0 Namespace Created (NSID ' + r.nsid + ') but Attach Failed\n\n' +
+            (r.attach_result || 'Unknown attach error') +
+            '\n\nThe namespace exists but is not attached. ' +
+            'Check the controller ID and try again.');
+      lines.push({text:`\u2714 Namespace created \u2014 NSID: ${r.nsid}`,cls:'ok'},{text:''});
+      lines.push({text:`\u2718 Attach: ${r.attach_result}`,cls:'err'});
       if (r.commands) { lines.push({text:'',cls:''}); lines.push({text:'Commands:',cls:'hd'}); r.commands.forEach(c=>lines.push({text:'  '+c,cls:'mut'})); }
+      showNSResult('Create Namespace', `NSID ${r.nsid} created, attach failed`, lines);
+    } else {
+      // Full success — close modal
+      closeModal('create-ns-modal');
+      lines.push({text:`\u2714 Namespace created \u2014 NSID: ${r.nsid}`,cls:'ok'},{text:''});
+      lines.push({text:`\u2714 Attach: ${r.attach_result}`,cls:'ok'});
+      if (r.commands) { lines.push({text:'',cls:''}); lines.push({text:'Commands:',cls:'hd'}); r.commands.forEach(c=>lines.push({text:'  '+c,cls:'mut'})); }
+      showNSResult('Create Namespace', `NSID ${r.nsid} created & attached`, lines);
+      refreshDevices();
     }
-    showNSResult('Create Namespace', r.error?'Failed':`NSID ${r.nsid} created & attached`, lines);
-    if (!r.error) refreshDevices();
   } finally { btn.disabled=false; btn.textContent='Create & Attach'; }
 }
+
+// ── Dark mode ──────────────────────────────────────────────────────────────
+function toggleDarkMode() {
+  const dark = document.body.classList.toggle('dark-mode');
+  document.getElementById('dark-toggle').textContent = dark ? '☀️' : '🌙';
+  try { localStorage.setItem('fdp-dark', dark ? '1' : '0'); } catch(e) {}
+}
+(function() {
+  try {
+    if (localStorage.getItem('fdp-dark') === '1') {
+      document.body.classList.add('dark-mode');
+      // btn not yet in DOM at this point — set after DOMContentLoaded
+      document.addEventListener('DOMContentLoaded', () => {
+        const btn = document.getElementById('dark-toggle');
+        if (btn) btn.textContent = '☀️';
+      });
+    }
+  } catch(e) {}
+})();
+
+// ── Cheatsheet ─────────────────────────────────────────────────────────────
+
+// Plain-text version used for "Copy All"
+const _CHEATSHEET_TEXT = `===== Namespace Management =====
+# Delete all namespaces
+nvme delete-ns /dev/nvme0 -n 0xFFFFFFFF
+
+# Create namespace with 4 RUHs (use capacity from id-ctrl tnvmcap / 4096)
+nvme create-ns /dev/nvme0 --block-size 4096 --nsze=<lbas> --ncap=<lbas> --phndls 0,1,2,3 --nphndls 4 --endg-id=1
+
+# Attach namespace (ignore --controllers on unsupported devices)
+nvme attach-ns /dev/nvme0 --namespace-id=1
+
+===== Log Pages =====
+# LID 20h - FDP Configurations
+nvme fdp configs /dev/nvme0 -e 1
+nvme get-log /dev/nvme0 --log-id=0x20 --log-len=4096 --namespace-id=0 --lsi=1
+
+# LID 21h - Reclaim Unit Handle Usage
+nvme fdp usage /dev/nvme0 -e 1
+nvme get-log /dev/nvme0 --log-id=0x21 --log-len=4096 --namespace-id=0 --lsi=1
+
+# LID 22h - FDP Statistics
+nvme fdp stats /dev/nvme0 -e 1
+nvme get-log /dev/nvme0 --log-id=0x22 --log-len=4096 --namespace-id=0 --lsi=1
+
+# LID 23h - FDP Events
+nvme fdp events /dev/nvme0 -e 1
+nvme fdp events /dev/nvme0 -e 1 -E          # include host events (type 03h)
+nvme get-log /dev/nvme0 --log-id=0x23 --log-len=4096 --namespace-id=0 --lsi=1
+
+===== Features =====
+# FID 1Dh - FDP Enable/Disable (requires all namespaces deleted first)
+nvme get-feature /dev/nvme0 --feature-id=0x1D --cdw11=1 -n 0 -H
+nvme admin-passthru /dev/nvme0 -O 0xA --cdw10=0x1D --cdw11=0x1         # Get
+nvme admin-passthru /dev/nvme0 -O 0x9 --cdw10=0x8000001D --cdw11=0x1 --cdw12=0x1  # Enable
+nvme admin-passthru /dev/nvme0 -O 0x9 --cdw10=0x8000001D --cdw11=0x1 --cdw12=0x0  # Disable
+
+# FID 1Eh - FDP Events Enable (per placement handle)
+nvme admin-passthru /dev/nvme0 -O 0x9 -n 1 --cdw10=0x8000001E --cdw11=0x60000 --cdw12=0x1 --data-len=6 --write --input-file=<(echo -n -e '\\x00\\x01\\x02\\x03\\x80\\x81')  # Enable all, RUH0
+nvme admin-passthru /dev/nvme0 -O 0x9 -n 1 --cdw10=0x8000001E --cdw11=0x60000 --cdw12=0x0 --data-len=6 --write --input-file=<(echo -n -e '\\x00\\x01\\x02\\x03\\x80\\x81')  # Disable all, RUH0
+
+===== IO =====
+# RUH Status (IO Management Receive, mo=1)
+nvme fdp status /dev/nvme0n1
+nvme io-mgmt-recv /dev/nvme0 -n 1 -m 1 -l 128
+nvme io-passthru /dev/nvme0n1 -O 0x12 -n 1 -l 128 -r --cdw10=0x1 --cdw11=0x1F
+
+# RUH Update (IO Management Send, mo=1)
+nvme fdp update /dev/nvme0 -n 1 -p 0,2
+nvme io-mgmt-send /dev/nvme0 -n 1 -m 1 -s 1 -l 4 --data=<(echo -n -e '\\x00\\x00\\x02\\x00')
+nvme io-passthru /dev/nvme0n1 -O 0x1D -n 1 --cdw10=0x1 -l 4 -w --input-file=<(echo -n -e '\\x00\\x00\\x02\\x00')
+
+# FDP Write (requires generic char device /dev/ngXnY)
+nvme write /dev/ng0n1 -n 1 --start-block=0x1122 --block-count=0 --data-size=4096 --data=file.bin --dir-type=0x2 --dir-spec=0x1`;
+
+// Structured data for the visual render
+const _CHEATSHEET_SECTIONS = [
+  {
+    title: 'Namespace Management',
+    groups: [
+      {
+        title: 'Delete All Namespaces',
+        cmds: [
+          { label: 'nvme-cli', cmd: 'nvme delete-ns /dev/nvme0 -n 0xFFFFFFFF' },
+        ],
+        params: [
+          ['-n 0xFFFFFFFF', 'Broadcast NSID — deletes every namespace'],
+        ]
+      },
+      {
+        title: 'Create Namespace with FDP Placement Handles',
+        cmds: [
+          { label: 'nvme-cli', cmd: 'nvme create-ns /dev/nvme0\n  --block-size 4096\n  --nsze=<lbas>  --ncap=<lbas>\n  --phndls 0,1,2,3  --nphndls 4\n  --endg-id=1' },
+        ],
+        params: [
+          ['--nsze / --ncap', 'Namespace size / capacity in LBAs (tnvmcap / block-size)'],
+          ['--phndls',        'Comma-separated placement handle → RUH index list'],
+          ['--nphndls',       'Number of placement handles'],
+          ['--endg-id',       'Endurance Group ID'],
+        ]
+      },
+      {
+        title: 'Attach Namespace',
+        cmds: [
+          { label: 'nvme-cli', cmd: 'nvme attach-ns /dev/nvme0 --namespace-id=1' },
+        ],
+        params: [
+          ['--namespace-id', 'NSID returned by create-ns'],
+          ['--controllers',  'Controller ID from id-ctrl (cntlid field) — omit if unsupported'],
+        ]
+      },
+    ]
+  },
+  {
+    title: 'Log Pages',
+    groups: [
+      {
+        title: 'LID 20h — FDP Configurations',
+        cmds: [
+          { label: 'fdp shorthand', cmd: 'nvme fdp configs /dev/nvme0 -e 1' },
+          { label: 'get-log',       cmd: 'nvme get-log /dev/nvme0 --log-id=0x20 --log-len=4096\n  --namespace-id=0 --lsi=1' },
+          { label: 'passthru',      cmd: 'nvme admin-passthru /dev/nvme0 --opcode=0x02\n  --namespace-id=0x0 --data-len=4096 --read\n  --cdw10=0x3FF20 --cdw11=0x10000' },
+        ],
+        params: [
+          ['-e / --lsi', 'Endurance Group ID'],
+          ['cdw10[07:00]', '0x20 = Log Page Identifier (FDP Configs)'],
+          ['cdw11[31:16]', 'LSI = Endurance Group ID'],
+        ]
+      },
+      {
+        title: 'LID 21h — Reclaim Unit Handle Usage',
+        cmds: [
+          { label: 'fdp shorthand', cmd: 'nvme fdp usage /dev/nvme0 -e 1' },
+          { label: 'get-log',       cmd: 'nvme get-log /dev/nvme0 --log-id=0x21 --log-len=4096\n  --namespace-id=0 --lsi=1' },
+        ],
+        params: [
+          ['LID 21h', 'Per-RUH usage — shows "(Unused)" suffix for inactive handles'],
+        ]
+      },
+      {
+        title: 'LID 22h — FDP Statistics',
+        cmds: [
+          { label: 'fdp shorthand', cmd: 'nvme fdp stats /dev/nvme0 -e 1' },
+          { label: 'get-log',       cmd: 'nvme get-log /dev/nvme0 --log-id=0x22 --log-len=4096\n  --namespace-id=0 --lsi=1' },
+        ],
+        params: [
+          ['hbmw', 'Host Bytes Written (used for WAF = mbmw / hbmw)'],
+          ['mbmw', 'Media Bytes Written'],
+          ['mbe',  'Media Bytes Erased'],
+        ]
+      },
+      {
+        title: 'LID 23h — FDP Events',
+        cmds: [
+          { label: 'fdp shorthand',        cmd: 'nvme fdp events /dev/nvme0 -e 1' },
+          { label: 'fdp shorthand (+host)', cmd: 'nvme fdp events /dev/nvme0 -e 1 -E' },
+          { label: 'get-log',               cmd: 'nvme get-log /dev/nvme0 --log-id=0x23 --log-len=4096\n  --namespace-id=0 --lsi=1' },
+        ],
+        params: [
+          ['-E',   'Include host-generated events (required for type 03h — Invalid PID)'],
+          ['00h',  'RU Not Fully Written'],
+          ['01h',  'RU Active Time Limit Exceeded'],
+          ['02h',  'Controller Level Reset Modified RUHs'],
+          ['03h',  'Invalid Placement Identifier (host event, needs -E)'],
+          ['80h',  'Media Reallocated'],
+          ['81h',  'Implicitly Modified RUH'],
+        ]
+      },
+    ]
+  },
+  {
+    title: 'Features',
+    groups: [
+      {
+        title: 'FID 1Dh — FDP Enable / Disable  (delete all NS first)',
+        cmds: [
+          { label: 'get-feature',      cmd: 'nvme get-feature /dev/nvme0 --feature-id=0x1D --cdw11=1 -n 0 -H' },
+          { label: 'passthru (get)',   cmd: 'nvme admin-passthru /dev/nvme0 -O 0xA\n  --cdw10=0x1D --cdw11=0x1' },
+          { label: 'passthru (enable)',cmd: 'nvme admin-passthru /dev/nvme0 -O 0x9\n  --cdw10=0x8000001D --cdw11=0x1 --cdw12=0x1' },
+          { label: 'passthru (disable)',cmd:'nvme admin-passthru /dev/nvme0 -O 0x9\n  --cdw10=0x8000001D --cdw11=0x1 --cdw12=0x0' },
+        ],
+        params: [
+          ['cdw10[31]',    'Save (SV) bit — 0x80000000'],
+          ['cdw10[07:00]', '0x1D = FDP Feature ID'],
+          ['cdw11',        'Endurance Group ID'],
+          ['cdw12',        '1 = Enable FDP, 0 = Disable FDP'],
+        ]
+      },
+      {
+        title: 'FID 1Eh — FDP Events Enable  (per Placement Handle)',
+        cmds: [
+          { label: 'get-feature',      cmd: 'nvme get-feature /dev/nvme0 --feature-id=0x1E --cdw11=0x0 -n 1 -H' },
+          { label: 'passthru (enable all, RUH0)',  cmd: "nvme admin-passthru /dev/nvme0 -O 0x9 -n 1\n  --cdw10=0x8000001E --cdw11=0x60000 --cdw12=0x1\n  --data-len=6 --write\n  --input-file=<(echo -n -e '\\x00\\x01\\x02\\x03\\x80\\x81')" },
+          { label: 'passthru (disable all, RUH0)', cmd: "nvme admin-passthru /dev/nvme0 -O 0x9 -n 1\n  --cdw10=0x8000001E --cdw11=0x60000 --cdw12=0x0\n  --data-len=6 --write\n  --input-file=<(echo -n -e '\\x00\\x01\\x02\\x03\\x80\\x81')" },
+        ],
+        params: [
+          ['cdw11[23:16]', '6 = number of event types to configure'],
+          ['cdw11[15:00]', 'Placement Handle index (0 = RUH0, 1 = RUH1, …)'],
+          ['cdw12',        '1 = enable, 0 = disable'],
+          ['data bytes',   '00h 01h 02h 03h 80h 81h = event types to configure'],
+        ]
+      },
+    ]
+  },
+  {
+    title: 'IO Commands',
+    groups: [
+      {
+        title: 'RUH Status  (IO Management Receive, MO=01h)',
+        cmds: [
+          { label: 'fdp shorthand', cmd: 'nvme fdp status /dev/nvme0n1' },
+          { label: 'io-mgmt-recv', cmd: 'nvme io-mgmt-recv /dev/nvme0 -n 1 -m 1 -l 128' },
+          { label: 'passthru',     cmd: 'nvme io-passthru /dev/nvme0n1 -O 0x12 -n 1\n  -l 128 -r --cdw10=0x1 --cdw11=0x1F' },
+        ],
+        params: [
+          ['-m 1 / cdw10=0x1', 'Management Operation = 01h (RUH Status)'],
+          ['-l 128 / cdw11=0x1F', '128 bytes = 32 dwords = 0x1F (0-based)'],
+        ]
+      },
+      {
+        title: 'RUH Update  (IO Management Send, MO=01h)',
+        cmds: [
+          { label: 'fdp shorthand', cmd: 'nvme fdp update /dev/nvme0 -n 1 -p 0,2' },
+          { label: 'io-mgmt-send', cmd: "nvme io-mgmt-send /dev/nvme0 -n 1 -m 1 -s 1 -l 4\n  --data=<(echo -n -e '\\x00\\x00\\x02\\x00')" },
+          { label: 'passthru',     cmd: "nvme io-passthru /dev/nvme0n1 -O 0x1D -n 1\n  --cdw10=0x1 -l 4 -w\n  --input-file=<(echo -n -e '\\x00\\x00\\x02\\x00')" },
+        ],
+        params: [
+          ['-p 0,2',     'Update Placement Handles 0 and 2 to new Reclaim Units'],
+          ['-s 1',       'MOS = 1 (Number of PIDs to update, 0-based → 2 PIDs)'],
+          ['data bytes', '2-byte little-endian PID per handle: 00 00 = PH0, 02 00 = PH2'],
+        ]
+      },
+      {
+        title: 'FDP Write  (requires generic char device /dev/ngXnY)',
+        cmds: [
+          { label: 'nvme write', cmd: 'nvme write /dev/ng0n1 -n 1\n  --start-block=0x1122  --block-count=0\n  --data-size=4096  --data=file.bin\n  --dir-type=0x2  --dir-spec=0x1' },
+        ],
+        params: [
+          ['/dev/ng0n1',  'Generic char device (NOT /dev/nvme0n1) — required for FDP'],
+          ['--dir-type=0x2', 'Directive Type 02h = Data Placement'],
+          ['--dir-spec',  'Placement ID (PID) — which RUH to target'],
+          ['--block-count=0', '0-based → 1 LBA written'],
+        ]
+      },
+    ]
+  }
+];
+
+function _esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function _renderCmd(cmdStr) {
+  // Syntax-highlight the command string
+  return _esc(cmdStr)
+    .replace(/^(nvme)/gm,       '<span class="cs-kw">$1</span>')
+    .replace(/\b(fdp|write|get-log|admin-passthru|io-passthru|io-mgmt-recv|io-mgmt-send|get-feature|set-feature|delete-ns|create-ns|attach-ns|fdp-update|update|events|stats|usage|configs|status)\b/g,
+             '<span class="cs-sub">$1</span>')
+    .replace(/\/dev\/\S+/g,     '<span class="cs-dev">$&</span>')
+    .replace(/(--[\w-]+=?)(\S*)/g, (_, flag, val) =>
+      `<span class="cs-flag">${flag}</span>${val ? `<span class="cs-val">${val}</span>` : ''}`);
+}
+
+function openCheatsheetModal() {
+  const container = document.getElementById('cheatsheet-content');
+  if (!container.innerHTML) {
+    let html = '';
+    for (const sec of _CHEATSHEET_SECTIONS) {
+      html += `<div class="cs-section">
+        <div class="cs-section-title">${_esc(sec.title)}</div>`;
+      for (const grp of sec.groups) {
+        html += `<div class="cs-group">
+          <div class="cs-group-title">${_esc(grp.title)}</div>
+          <div class="cs-cmd-block">`;
+        grp.cmds.forEach((c, i) => {
+          if (i > 0) html += '<div class="cs-divider"></div>';
+          html += `<div class="cs-cmd-row">
+            <div class="cs-cmd-label">${_esc(c.label)}</div>
+            <div class="cs-cmd">${_renderCmd(c.cmd)}</div>
+          </div>`;
+        });
+        if (grp.params?.length) {
+          html += '<div class="cs-divider"></div><div class="cs-params">';
+          grp.params.forEach(([k,v]) => {
+            html += `<span class="cs-param-key">${_esc(k)}</span>
+                     <span class="cs-param-desc">${_esc(v)}</span>`;
+          });
+          html += '</div>';
+        }
+        html += '</div></div>';
+      }
+      html += '</div>';
+    }
+    container.innerHTML = html;
+  }
+  openModal('cheatsheet-modal');
+}
+
+async function copyCheatsheet() {
+  const btn = document.getElementById('cheatsheet-copy-btn');
+  try {
+    await navigator.clipboard.writeText(_CHEATSHEET_TEXT);
+    btn.textContent = '\u2714 Copied!';
+    setTimeout(() => btn.textContent = '\U0001f4cb Copy All', 2000);
+  } catch(e) {
+    const pre = document.getElementById('cheatsheet-content');
+    const sel = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(pre);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    btn.textContent = '(selected \u2014 Ctrl+C)';
+    setTimeout(() => btn.textContent = '\U0001f4cb Copy All', 3000);
+  }
+}
+
+
+// ── LBA Map ────────────────────────────────────────────────────────────────
+const _lbaMapCache = {};
+
+let _lbaCurrentMode = 'sample';
+
+function _lbaColor(density) {
+  if (density < 0)   return '#2d2d3a';
+  if (_lbaCurrentMode === 'sample') return density > 0 ? '#22c55e' : '#0f1117';
+  if (density === 0)  return '#0f1117';
+  if (density < 0.10) return '#1a3a5c';
+  if (density < 0.30) return '#1e5f6b';
+  if (density < 0.60) return '#0369a1';
+  if (density < 0.85) return '#22c55e';
+  return '#10b981';
+}
+
+function _lbaUpdateLegend(mode) {
+  const l = document.getElementById('lba-map-legend');
+  if (!l) return;
+  if (mode === 'sample') {
+    l.innerHTML = '<div class="lba-legend-swatch" style="background:#0f1117;border:1px solid #333"></div>Empty&nbsp;&nbsp;'
+      +'<div class="lba-legend-swatch" style="background:#22c55e"></div>Has data&nbsp;&nbsp;'
+      +'<div class="lba-legend-swatch" style="background:#2d2d3a;border:1px solid #444"></div>Beyond NS';
+  } else {
+    l.innerHTML = '<div class="lba-legend-swatch" style="background:#0f1117;border:1px solid #333"></div>Empty&nbsp;'
+      +'<div class="lba-legend-swatch" style="background:#1a3a5c"></div>&lt;10%&nbsp;'
+      +'<div class="lba-legend-swatch" style="background:#1e5f6b"></div>10–30%&nbsp;'
+      +'<div class="lba-legend-swatch" style="background:#0369a1"></div>30–60%&nbsp;'
+      +'<div class="lba-legend-swatch" style="background:#22c55e"></div>60–85%&nbsp;'
+      +'<div class="lba-legend-swatch" style="background:#10b981"></div>85–100%&nbsp;'
+      +'<div class="lba-legend-swatch" style="background:#2d2d3a;border:1px solid #444"></div>Beyond NS';
+  }
+}
+
+function _buildLBAGrid(results, maxLbas, lbaSize, lbasPerMinor) {
+  const grid = document.getElementById('lba-major-grid');
+  grid.innerHTML = '';
+  const totalGB = (maxLbas * lbaSize / 1e9).toFixed(1);
+  for (let maj = 0; maj < 100; maj++) {
+    const majorCell = document.createElement('div');
+    majorCell.className = 'lba-major-cell';
+    majorCell.id = `lba-maj-${maj}`;
+    for (let min = 0; min < 100; min++) {
+      const cellIdx = maj * 100 + min;
+      const mc = document.createElement('div');
+      mc.className = 'lba-minor-cell';
+      const density = results[cellIdx] ?? -1;
+      mc.style.background = _lbaColor(density);
+      const startLba = cellIdx * lbasPerMinor;
+      const endLba   = Math.min(startLba + lbasPerMinor - 1, maxLbas - 1);
+      const startGB  = (startLba * lbaSize / 1e9).toFixed(3);
+      const endGB    = (endLba   * lbaSize / 1e9).toFixed(3);
+      const pct      = density >= 0 ? ` — ${(density*100).toFixed(0)}% written` : ' — beyond NS';
+      mc.title = `LBA ${startLba.toLocaleString()}–${endLba.toLocaleString()} (${startGB}–${endGB} GB)${pct}`;
+      majorCell.appendChild(mc);
+    }
+    grid.appendChild(majorCell);
+  }
+  const _nsLabel = document.getElementById('lba-map-ns-label');
+  if (_nsLabel) { const _d = getSelectedDevice(); _nsLabel.textContent = _d ? '(' + _d + ')' : ''; }
+  document.getElementById('lba-map-subtitle').textContent =
+    `${totalGB} GB namespace · major cell ≈ ${(maxLbas*lbaSize/1e9/100).toFixed(2)} GB · minor cell ≈ ${(maxLbas*lbaSize/1e6/10000).toFixed(2)} MB`;
+}
+
+function _updateMajorCell(majorIdx, cells) {
+  const mc = document.getElementById(`lba-maj-${majorIdx}`);
+  if (!mc) return;
+  mc.querySelectorAll('.lba-minor-cell').forEach((el, i) => {
+    el.style.background = _lbaColor(cells[i] ?? -1);
+  });
+}
+
+function _initEmptyGrid() {
+  const grid = document.getElementById('lba-major-grid');
+  grid.innerHTML = '';
+  for (let maj = 0; maj < 100; maj++) {
+    const mc = document.createElement('div');
+    mc.className = 'lba-major-cell';
+    mc.id = `lba-maj-${maj}`;
+    for (let min = 0; min < 100; min++) {
+      const mn = document.createElement('div');
+      mn.className = 'lba-minor-cell';
+      mn.style.background = '#0f1117';
+      mc.appendChild(mn);
+    }
+    grid.appendChild(mc);
+  }
+}
+
+function openLBAMapModal() {
+  const device = getSelectedDevice();
+  openModal('lba-map-modal');
+  if (!device) {
+    document.getElementById('lba-map-status').textContent = 'No device selected.';
+    return;
+  }
+  if (_lbaMapCache[device]) {
+    const cached = _lbaMapCache[device];
+    _buildLBAGrid(cached.results, cached.maxLbas, cached.lbaSize, cached.lbasPerMinor);
+    document.getElementById('lba-map-status').textContent =
+    _lbaCurrentMode=cached.mode;
+    _lbaUpdateLegend(cached.mode);
+    const _cLabel = document.getElementById('lba-map-ns-label');
+    if (_cLabel) _cLabel.textContent = device ? '(' + device + ')' : '';
+    const bc=document.getElementById('lba-map-mode-badge');
+    if(bc){bc.style.display='';bc.textContent=`${cached.mode==='sample'?'Sample':'Full Scan'} \u2014 ${cached.timestamp}`;}
+      `${(cached.maxLbas*cached.lbaSize/1e9).toFixed(1)} GB \u2014 click 'New Scan' to refresh`;
+    document.getElementById('lba-scan-btn').style.display = '';
+    document.getElementById('lba-stop-btn').style.display  = 'none';
+    return;
+  }
+  _initEmptyGrid();
+  startLBAScan(false);
+}
+
+async function startLBAScan(isNewScan) {
+  const device = getSelectedDevice();
+  if (!device) { alert('Select a device first.'); return; }
+  const mode = document.querySelector('input[name="lba-mode"]:checked')?.value || 'sample';
+  if (isNewScan) _initEmptyGrid();
+  _lbaCurrentMode=mode; _lbaUpdateLegend(mode);
+  document.getElementById('lba-scan-btn').style.display='none';
+  document.getElementById('lba-stop-btn').style.display='';
+  document.getElementById('lba-progress-wrap').style.display='';
+  document.getElementById('lba-progress-bar').style.width='0%';
+  const badge=document.getElementById('lba-map-mode-badge');
+  if(badge){badge.style.display='';badge.textContent=mode==='sample'?'Sample':'Full Scan';}
+  document.getElementById('lba-map-status').textContent=`Starting ${mode} scan…`;
+  try {
+    const r = await fetch('/api/ctrl/lba-scan', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({device, mode})
+    }).then(x => x.json());
+    if (r.error) {
+      document.getElementById('lba-map-status').textContent = '\u2718 ' + r.error;
+      document.getElementById('lba-scan-btn').style.display = '';
+      document.getElementById('lba-stop-btn').style.display  = 'none';
+    } else {
+      document.getElementById('lba-map-status').textContent =
+        `${mode === 'sample' ? 'Sample' : 'Full'} scan running — ${(r.nsze*r.lba_size/1e9).toFixed(1)} GB namespace…`;
+    }
+  } catch(e) {
+    document.getElementById('lba-map-status').textContent = 'Request failed: ' + e.message;
+    document.getElementById('lba-scan-btn').style.display = '';
+    document.getElementById('lba-stop-btn').style.display  = 'none';
+  }
+}
+
+async function stopLBAScan() {
+  await fetch('/api/ctrl/lba-scan-stop', {method:'POST',
+    headers:{'Content-Type':'application/json'}, body:'{}'});
+}
+
+socket.on('lba_scan_progress', d => {
+  _updateMajorCell(d.major_idx, d.cells);
+  document.getElementById('lba-map-status').textContent =
+  document.getElementById('lba-progress-bar').style.width = Math.round(d.major_idx+1)+'%';
+    `Scanning\u2026 ${d.major_idx+1}\u202f/\u202f100 major cells`;
+});
+
+socket.on('lba_scan_complete', d => {
+  const device = getSelectedDevice();
+  const now    = new Date().toLocaleTimeString();
+  if (device) {
+    _lbaMapCache[device] = {
+      results: d.results, maxLbas: d.max_lbas, lbaSize: d.lba_size,
+      lbasPerMinor: d.lbas_per_minor, mode: d.mode, timestamp: now,
+    };
+  }
+  _buildLBAGrid(d.results, d.max_lbas, d.lba_size, d.lbas_per_minor);
+  document.getElementById('lba-map-status').textContent =
+  _lbaCurrentMode = d.mode;
+  _lbaUpdateLegend(d.mode);
+  document.getElementById('lba-progress-bar').style.width='100%';
+  setTimeout(()=>{ document.getElementById('lba-progress-wrap').style.display='none';document.getElementById('lba-progress-bar').style.width='0%'; },800);
+  const b2=document.getElementById('lba-map-mode-badge');
+  if(b2){b2.style.display='';b2.textContent=`${d.mode==='sample'?'Sample':'Full Scan'} \u2014 ${now}`;}
+    `Scan complete \u2014 ${(d.max_lbas*d.lba_size/1e9).toFixed(1)} GB`;
+  document.getElementById('lba-scan-btn').style.display = '';
+  document.getElementById('lba-stop-btn').style.display  = 'none';
+});
+
+socket.on('lba_scan_error', d => {
+  document.getElementById('lba-map-status').textContent = '\u2718 ' + d.error;
+  document.getElementById('lba-scan-btn').style.display = '';
+  document.getElementById('lba-stop-btn').style.display  = 'none';
+  document.getElementById('lba-progress-wrap').style.display = 'none';
+});
+
+socket.on('lba_scan_stopped', () => {
+  document.getElementById('lba-map-status').textContent = 'Scan stopped.';
+  document.getElementById('lba-scan-btn').style.display = '';
+  document.getElementById('lba-stop-btn').style.display  = 'none';
+  document.getElementById('lba-progress-wrap').style.display = 'none';
+});
 
 // ── Boot ───────────────────────────────────────────────────────────────────
 init();

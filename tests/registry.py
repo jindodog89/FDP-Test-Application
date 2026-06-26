@@ -3,19 +3,25 @@ Central test registry — imports and ALL_TESTS list.
 Tests are ordered strictly by case number within each category (B, I, R, A).
 """
 
+# ── Endurance (E1–) ─────────────────────────────────────────────
+from tests.endurance.E0_Endurance_preconditioning          import TestPreconditioning
+from tests.endurance.E1_Endurance_WAF_per_RUH              import TestEnduranceWAF
+from tests.endurance.E2_Endurance_WAF_overall              import TestEnduranceWAFAllRUH
+from tests.endurance.E3_Endurance_Single_RUH               import TestEnduranceSingleRUH
+
 # ── Basic (B1–B5) ─────────────────────────────────────────────────────────────
 from tests.basic.B1_FDP_Status_Check                       import TestFDPStatus
 from tests.basic.B2_FDP_Configurations_Enumeration         import TestFDPConfigs
 from tests.basic.B3_Placement_Identifier_Verification      import TestPlacementIDs
 from tests.basic.B4_Reclaim_Unit_Handle_Status             import TestReclaimUnits
 from tests.basic.B5_FDP_Events_Log                         import TestFDPEvents
+from tests.basic.B6_FDP_Update                             import TestFDPUpdate
 
 # ── IO (I1–I11) ───────────────────────────────────────────────────────────────
 from tests.io.I1_NVMe_Write_Valid_Placement_ID             import TestNVMeWriteValidPID
 from tests.io.I2_NVMe_Write_Invalid_Placement_ID           import TestNVMeWriteInvalidPID
 from tests.io.I3_NVMe_Write_User_Controlled_Parameters     import TestNVMeWriteUserControlled
 from tests.io.I4_NVMe_Write_Legacy                         import TestNVMeWriteLegacy
-from tests.io.I5_Endurance_WAF_Calculation                 import TestFDPEndurance
 from tests.io.I6_Multi_Handle_Isolation                    import TestFDPMultiHandleIsolation
 from tests.io.I7_Placement_Handle_Capacity_Exhaustion      import TestFDPHandleCapacityExhaustion
 from tests.io.I8_IO_Mgmt_Recv_Valid                        import TestIOMgmtReceiveValid
@@ -68,21 +74,33 @@ from tests.admin.A27_Disable_FDP_Stats_Clear               import TestAdminDisab
 from tests.admin.A28_Calculate_WAF                         import TestAdminCalculateWAF
 from tests.admin.A29_DWPD_Calculation                      import TestAdminDWPDCalculation
 
+# ── Corner (C1, C14, C17, C20) ──────────────────────────────────────────────
+from tests.corner.C1_Sanitize_During_FDP_IO              import TestSanitizeDuringFDPIO
+from tests.corner.C2_RUHU_During_Active_Write            import TestRUHUDuringActiveWrite
+from tests.corner.C3_FDP_Events_Log_Overflow             import TestFDPEventsLogOverflow
+from tests.corner.C4_Format_During_FDP_Write             import TestFormatDuringFDPWrite
+
 
 ALL_TESTS = [
-    # B1–B5
+    # E1–
+    TestPreconditioning,
+    TestEnduranceWAF,
+    TestEnduranceWAFAllRUH,
+    TestEnduranceSingleRUH,
+
+    # B1–B6
     TestFDPStatus,
     TestFDPConfigs,
     TestPlacementIDs,
     TestReclaimUnits,
     TestFDPEvents,
+    TestFDPUpdate,
 
     # I1–I11
     TestNVMeWriteValidPID,
     TestNVMeWriteInvalidPID,
     TestNVMeWriteUserControlled,
     TestNVMeWriteLegacy,
-    TestFDPEndurance,
     TestFDPMultiHandleIsolation,
     TestFDPHandleCapacityExhaustion,
     TestIOMgmtReceiveValid,
@@ -134,6 +152,12 @@ ALL_TESTS = [
     TestAdminDisableFDPStatsClear,
     TestAdminCalculateWAF,
     TestAdminDWPDCalculation,
+
+    # Corner
+    TestSanitizeDuringFDPIO,
+    TestRUHUDuringActiveWrite,
+    TestFDPEventsLogOverflow,
+    TestFormatDuringFDPWrite,
 ]
 
 

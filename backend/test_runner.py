@@ -27,7 +27,7 @@ class TestRunner:
 
     def start_run(self, device: str, test_ids: list, params: dict = None,
                   cycles: int = 1, stop_on_error: bool = False) -> str:
-        run_id = str(uuid.uuid4())[:8]
+        run_id = datetime.now().strftime("%H%M%S")
         cycles = max(1, int(cycles))
         self.runs[run_id] = {
             "run_id":   run_id,
@@ -90,6 +90,9 @@ class TestRunner:
 
                 def log(msg, _l=logs, _tid=test_id, _rid=run_id):
                     _l.append(msg)
+                    if isinstance(msg, str) and msg.strip() == "__E0_REMINDER__":
+                        self.socketio.emit("e0_reminder", {"run_id": _rid})
+                        return   # skip emitting this token as a log line
                     self.socketio.emit("test_log", {
                         "run_id": _rid, "test_id": _tid, "message": msg
                     })
@@ -110,7 +113,14 @@ class TestRunner:
                         "name":    cls.name,
                         "status":  tr.status.value if hasattr(tr.status, "value") else tr.status,
                         "message": tr.message,
-                        "details": str(tr.details) if tr.details else None,
+                        "details": (
+                        {k: v for k, v in tr.details.items() if k != "html_summary"}
+                        if isinstance(tr.details, dict) else str(tr.details)
+                    ) if tr.details else None,
+                    "html_summary": (
+                        tr.details.get("html_summary")
+                        if isinstance(tr.details, dict) else None
+                    ),
                         "logs":    logs,
                     }
                 except Exception as e:

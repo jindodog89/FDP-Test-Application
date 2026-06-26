@@ -35,7 +35,7 @@ class TestAdminValidateEventInvalidPID(BaseTest):
         time.sleep(1) # Allow log to populate
         
         log("Step 3: Retrieving Log 23h and parsing the most recent event descriptor...")
-        log_res = driver.fdp_events(endgrp=endgrp)
+        log_res = driver.fdp_events(endgrp=endgrp, host_events=True)
         events = log_res.get("data", {}).get("events", [])
         
         if not events:
@@ -47,7 +47,7 @@ class TestAdminValidateEventInvalidPID(BaseTest):
         
         log(f"  Found Event - Type: {event_type}, PID: {hex(logged_pid)}")
         
-        if event_type == 0x00 and logged_pid == invalid_pid:
+        if event_type == 0x03 and logged_pid == invalid_pid:
             log("✓ Event Type is 0x00 (Invalid PID) and the Placement Identifier matches.")
             return TestResult(TestStatus.PASS, "Successfully logged and validated Invalid PID event.")
         else:

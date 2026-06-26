@@ -207,6 +207,19 @@ class TestFDPDirectivesPersistReset(ResetTestBase, BaseTest):
             log(f"  {tag}Unexpected response type: {type(data)}")
             return None
 
+        # Shape 0: raw bytes (preferred) — byte index equals directive type
+        if "raw_bytes" in data:
+            raw = data["raw_bytes"]
+            if isinstance(raw, (bytes, bytearray)) and dtype < len(raw):
+                val = raw[dtype]
+                log(f"  {tag}raw_bytes[{dtype}] = 0x{val:02x} "
+                    f"(supported={bool(val & 0x01)} "
+                    f"enabled={bool(val & 0x02)} "
+                    f"persistent={bool(val & 0x04)})")
+                return val
+            log(f"  {tag}raw_bytes present but too short ({len(raw) if raw else 0} bytes)")
+            return None
+
         # Shape 1: list of directive entries
         if "directives" in data:
             for entry in data["directives"]:

@@ -1,159 +1,222 @@
 """
-Test: fdp_handle_capacity_exhaustion (extra — not in original list)
-Write enough data to a single placement handle to exhaust its reclaim unit,
-then verify the device either triggers a new reclaim unit assignment (RUHU)
-or returns an appropriate status. Tests the handle rotation/wraparound behavior.
+Test: I7. Placement Handle Capacity Exhaustion
+Exhausts the Reclaim Unit capacity of a single placement handle by running a
+fio sequential-write workload that fills the device using the target PID.
+
+fio is used instead of individual nvme writes because some devices have very
+large RUHs (hundreds of GB) that would require millions of individual 4k writes
+and take impractically long to exhaust one-by-one.
+
+Pass criteria:
+  - fio completes without a fatal error, AND
+  - The final ruamw for the target handle is 0 (fully exhausted), OR
+  - The device has automatically triggered a Reclaim Unit Handle Update (RUHU)
+    (ruamw resets to a higher value, indicating rotation to a new RU).
 """
 
 import subprocess
+import tempfile
+import os
+import re as _re
+import time
 from tests.base_test import BaseTest, TestResult, TestStatus
-import os as _os
-_IO_FILES = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "IO_files")
-_DATA_FILE = _os.path.join(_IO_FILES, "randints_4k.txt")
-
+from backend import fio_registry
 
 
 class TestFDPHandleCapacityExhaustion(BaseTest):
-    test_id = "fdp_handle_capacity_exhaustion"
-    name = "I7. Placement Handle Capacity Exhaustion"
+    test_id  = "fdp_handle_capacity_exhaustion"
+    name     = "I7. Placement Handle Capacity Exhaustion"
     description = (
-        "Writes data to a single placement handle until the reclaim unit's "
-        "remaining capacity (RUAMW) reaches zero, then checks whether the device "
-        "automatically assigns a new reclaim unit (RUHU) or surfaces an event. "
-        "Validates reclaim unit rotation behavior per FDP spec."
+        "Runs a fio sequential-write workload targeting a single placement "
+        "handle (fdp_pli) until the Reclaim Unit's remaining capacity (ruamw) "
+        "reaches zero. Verifies the device correctly exhausts the RU and "
+        "optionally triggers a new Reclaim Unit Handle Update (RUHU)."
     )
     category = "IO"
-    tags = ["write", "exhaustion", "ruhu", "ruhs", "capacity", "rotation"]
+    tags     = ["write", "exhaustion", "ruhu", "ruhs", "capacity", "rotation", "fio"]
 
     DEFAULT_PARAMS = {
-        "placement_handle": 0,
-        "namespace":        1,
-        "max_iterations":   500,    # Safety cap to avoid infinite loop
-        "block_size_bytes": 4096,
+        "placement_handle": 0,       # PID / fdp_pli to target
+        "namespace":        1,       # NSID
+        "fio_block_size":   "128k",  # larger BS = fewer IOPS = faster fill
+        "fio_queue_depth":  8,
+        "fio_num_jobs":     1,
+        "poll_interval_sec": 30,     # how often to check ruamw while fio runs
+        "timeout_sec":      86400,   # hard ceiling (24 h)
     }
 
     def run(self, driver, log) -> TestResult:
-        p = {**self.DEFAULT_PARAMS, **getattr(self, "params", {})}
+        p   = {**self.DEFAULT_PARAMS, **getattr(self, "params", {})}
+        pid = int(p["placement_handle"])
+        ns  = int(p["namespace"])
 
-        # ── Step 1: Check initial capacity ────────────────────────────────────
-        log(f"Step 1: Reading initial capacity for handle {p['placement_handle']}...")
-        ruhs_result = driver.fdp_ruhs(ns=p["namespace"])
-        if ruhs_result["rc"] != 0:
-            return TestResult(TestStatus.FAIL, f"Cannot read RUHS: {ruhs_result['stderr'].strip()}")
+        # ── Pre-flight ────────────────────────────────────────────────────────
+        if subprocess.run(["which", "fio"], capture_output=True).returncode != 0:
+            return TestResult(TestStatus.SKIP,
+                              "fio not found — install with: sudo apt install fio")
+        subprocess.run(["sysctl", "-w", "kernel.io_uring_disabled=0"],
+                       capture_output=True)
 
-        ruhs = driver.extract_ruhs(ruhs_result)
-        handle = self._find_handle(ruhs, p["placement_handle"])
+        ctrl_dev = _re.sub(r"n\d+$", "", driver.device)
+        ns_dev   = ctrl_dev + f"n{ns}"
+        m        = _re.search(r"nvme(\d+)n(\d+)", ns_dev)
+        ng_dev   = f"/dev/ng{m.group(1)}n{m.group(2)}" if m else ns_dev
+
+        # ── Step 1: Read initial capacity ─────────────────────────────────────
+        log(f"Step 1: Reading initial capacity for handle {pid}...")
+        ruhs_r = driver.fdp_ruhs(ns=ns)
+        if ruhs_r["rc"] != 0:
+            return TestResult(TestStatus.FAIL,
+                              f"Cannot read RUHS: {ruhs_r['stderr'].strip()}")
+        ruhs   = driver.extract_ruhs(ruhs_r)
+        handle = self._find_handle(ruhs, pid)
         if handle is None:
-            return TestResult(TestStatus.FAIL, f"Handle {p['placement_handle']} not found in RUHS")
+            return TestResult(TestStatus.FAIL,
+                              f"Handle {pid} not found in RUHS response")
 
-        initial_cap = int(handle.get("ruamw", 0))
-        log(f"  Handle {p['placement_handle']} initial capacity: {initial_cap:,} sectors")
+        initial_ruamw = int(handle.get("ruamw", 0))
+        lba_size      = 4096   # assume 4 KiB LBAs
+        initial_bytes = initial_ruamw * lba_size
 
-        if initial_cap == 0:
-            return TestResult(TestStatus.SKIP, "Handle already at 0 capacity — reset device state before running")
+        log(f"  Handle {pid}  ruamw={initial_ruamw:,} blocks  "
+            f"≈ {initial_bytes / 1e9:.2f} GB")
 
-        # Estimate iterations needed (each write = 1 block = block_size/sector_size sectors)
-        sector_size = 4096  # Assume 4K sectors for this device
-        sectors_per_write = p["block_size_bytes"] // sector_size
-        estimated_writes = (initial_cap // sectors_per_write) + 1
-        log(f"  Estimated writes to exhaust: {estimated_writes:,} (capped at {p['max_iterations']})")
+        if initial_ruamw == 0:
+            return TestResult(TestStatus.SKIP,
+                              "Handle already at 0 capacity — "
+                              "reset device state before running")
 
-        if estimated_writes > p["max_iterations"]:
-            return TestResult(
-                TestStatus.SKIP,
-                f"Handle has {initial_cap:,} sectors remaining — would require {estimated_writes:,} writes "
-                f"to exhaust (max_iterations={p['max_iterations']}). Increase max_iterations or use a "
-                "handle with less remaining capacity."
-            )
+        # ── Step 2: Launch fio to fill the RU ────────────────────────────────
+        log(f"\nStep 2: Launching fio to fill handle {pid} "
+            f"(bs={p['fio_block_size']}, qd={p['fio_queue_depth']}, "
+            f"size=100%, timeout={p['timeout_sec']}s)...")
 
-        # ── Step 2: Write until capacity is exhausted ─────────────────────────
-        log(f"\nStep 2: Writing to handle {p['placement_handle']} until capacity exhausted...")
-        iteration = 0
-        cap_at_start_of_batch = initial_cap
-        ruhu_triggered = False
+        fio_job = "\n".join([
+            "[global]",
+            "ioengine=io_uring_cmd",
+            "rw=write",
+            f"bs={p['fio_block_size']}",
+            f"iodepth={p['fio_queue_depth']}",
+            f"numjobs={p['fio_num_jobs']}",
+            "size=100%",          # fill entire device once
+            "fdp=1",
+            f"fdp_pli={pid}",
+            "fdp_pli_select=roundrobin",
+            "",
+            f"[i7_exhaust_pid{pid}]",
+            f"filename={ng_dev}",
+            "",
+        ])
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".fio",
+                                         delete=False) as f:
+            f.write(fio_job)
+            fio_path = f.name
 
-        while iteration < p["max_iterations"]:
-            result = driver.run_cmd([
-                "write", driver.device,
-                f"--namespace-id={p['namespace']}",
-                "--start-block=0",
-                "--block-count=0",
-                f"--data-size={p['block_size_bytes']}",
-                "--data=" + _DATA_FILE,
-                "--dir-type=2",
-                f"--dir-spec={p['placement_handle']}",
-            ], json_out=False)
+        fio_proc = subprocess.Popen(
+            ["fio", "--output-format=normal", fio_path],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
+        fio_registry.set_fio_process(fio_proc)
+        log(f"  fio started (PID {fio_proc.pid})")
 
-            iteration += 1
+        # ── Step 3: Poll ruamw while fio runs ─────────────────────────────────
+        log(f"\nStep 3: Polling ruamw every {p['poll_interval_sec']}s...")
+        start_time    = time.time()
+        ruhu_detected = False
+        prev_ruamw    = initial_ruamw
+        polls         = 0
 
-            if result["rc"] != 0:
-                stderr = result["stderr"].strip().lower()
-                # Check if device rejected because capacity is full
-                if any(k in stderr for k in ("capacity", "full", "enospc", "no space")):
-                    log(f"  Iteration {iteration}: Device rejected write (capacity full) ✓")
-                    break
-                log(f"  Iteration {iteration}: Write error (rc={result['rc']}): {result['stderr'].strip()[:80]}")
-                break
+        try:
+            while fio_proc.poll() is None:
+                time.sleep(p["poll_interval_sec"])
+                polls += 1
+                elapsed = time.time() - start_time
 
-            # Periodically check capacity
-            if iteration % max(1, estimated_writes // 10) == 0 or iteration == 1:
-                ruhs_check = driver.fdp_ruhs(ns=p["namespace"])
-                if ruhs_check["rc"] == 0:
-                    ruhs_cur = driver.extract_ruhs(ruhs_check)
-                    h = self._find_handle(ruhs_cur, p["placement_handle"])
+                ruhs_now = driver.fdp_ruhs(ns=ns)
+                if ruhs_now["rc"] == 0:
+                    h = self._find_handle(driver.extract_ruhs(ruhs_now), pid)
                     if h:
-                        cur_cap = int(h.get("ruamw", 0))
-                        log(f"  Iteration {iteration}: capacity={cur_cap:,}")
-                        if cur_cap == 0:
-                            log(f"  Capacity reached 0 at iteration {iteration}")
-                            break
+                        cur_ruamw = int(h.get("ruamw", 0))
+                        log(f"  Poll {polls} @ {elapsed:.0f}s — "
+                            f"ruamw={cur_ruamw:,} blocks "
+                            f"({cur_ruamw * lba_size / 1e9:.2f} GB remaining)")
 
-        log(f"\n  Completed {iteration} write(s)")
+                        # RUHU detected: ruamw went UP (device rotated to new RU)
+                        if cur_ruamw > prev_ruamw:
+                            log(f"  ✓ RUHU detected — ruamw rose from "
+                                f"{prev_ruamw:,} → {cur_ruamw:,}")
+                            ruhu_detected = True
 
-        # ── Step 3: Final RUHS read ───────────────────────────────────────────
-        log("\nStep 3: Final RUHS read...")
-        final_ruhs_result = driver.fdp_ruhs(ns=p["namespace"])
-        final_cap = None
-        if final_ruhs_result["rc"] == 0:
-            final_ruhs = driver.extract_ruhs(final_ruhs_result)
-            final_handle = self._find_handle(final_ruhs, p["placement_handle"])
-            if final_handle:
-                final_cap = int(final_handle.get("ruamw", 0))
-                log(f"  Final capacity: {final_cap:,} sectors")
+                        prev_ruamw = cur_ruamw
 
+                if elapsed > p["timeout_sec"]:
+                    log(f"  ⚠ Timeout ({p['timeout_sec']}s) reached — "
+                        f"terminating fio")
+                    break
+
+        finally:
+            fio_registry.set_fio_process(None)
+            if fio_proc.poll() is None:
+                fio_proc.terminate()
+                try:
+                    fio_proc.wait(timeout=30)
+                except subprocess.TimeoutExpired:
+                    fio_proc.kill()
+            os.unlink(fio_path)
+
+        fio_out, fio_err = fio_proc.communicate()
+        log(f"  fio exited (rc={fio_proc.returncode})")
+        if fio_err.strip():
+            log(f"  fio stderr: {fio_err.strip()[:300]}")
+
+        # ── Step 4: Final ruamw read ──────────────────────────────────────────
+        log("\nStep 4: Final RUHS read...")
+        final_r = driver.fdp_ruhs(ns=ns)
+        final_ruamw = None
+        if final_r["rc"] == 0:
+            h = self._find_handle(driver.extract_ruhs(final_r), pid)
+            if h:
+                final_ruamw = int(h.get("ruamw", 0))
+                log(f"  Final ruamw for handle {pid}: {final_ruamw:,} blocks "
+                    f"({final_ruamw * lba_size / 1e9:.2f} GB remaining)")
+
+        consumed_blocks = initial_ruamw - (final_ruamw or 0)
         details = {
-            "iterations": iteration,
-            "initial_capacity": initial_cap,
-            "final_capacity": final_cap,
-            "ruhu_triggered": ruhu_triggered,
+            "initial_ruamw":  initial_ruamw,
+            "final_ruamw":    final_ruamw,
+            "consumed_blocks": consumed_blocks,
+            "ruhu_detected":  ruhu_detected,
+            "fio_rc":         fio_proc.returncode,
         }
 
-        if ruhu_triggered:
-            return TestResult(
-                TestStatus.PASS,
-                f"Device correctly triggered RUHU (new reclaim unit assignment) "
-                f"after {iteration} write(s)",
-                details=details
-            )
+        # ── Verdict ───────────────────────────────────────────────────────────
+        if fio_proc.returncode not in (0, -15):
+            return TestResult(TestStatus.FAIL,
+                              f"fio exited with rc={fio_proc.returncode} — "
+                              f"check stderr for details",
+                              details=details)
 
-        if final_cap is not None and final_cap == 0:
-            return TestResult(
-                TestStatus.PASS,
-                f"Handle capacity reached 0 after {iteration} write(s) — "
-                "exhaustion behavior confirmed (RUHU may be triggered on next write)",
-                details=details
-            )
+        if ruhu_detected:
+            return TestResult(TestStatus.PASS,
+                              f"RUHU triggered — device correctly rotated to a "
+                              f"new Reclaim Unit after consuming "
+                              f"{consumed_blocks:,} blocks",
+                              details=details)
 
-        consumed = initial_cap - (final_cap or 0)
-        return TestResult(
-            TestStatus.WARN,
-            f"Wrote {iteration} time(s), consumed {consumed:,} sectors. "
-            "Capacity not fully exhausted within iteration limit.",
-            details=details
-        )
+        if final_ruamw == 0:
+            return TestResult(TestStatus.PASS,
+                              f"Handle {pid} capacity fully exhausted "
+                              f"({consumed_blocks:,} blocks consumed) — "
+                              "RUHU may be triggered on the next write",
+                              details=details)
+
+        return TestResult(TestStatus.WARN,
+                          f"fio completed but handle {pid} was not fully exhausted "
+                          f"(consumed {consumed_blocks:,} / {initial_ruamw:,} blocks). "
+                          "Device may have very large RU — check poll logs.",
+                          details=details)
 
     def _find_handle(self, ruhs: list, ruhid: int) -> dict | None:
-        """Return the RUHS entry whose ruhid matches, or None."""
         for ruh in ruhs:
             if ruh.get("ruhid") is not None and int(ruh["ruhid"]) == ruhid:
                 return ruh

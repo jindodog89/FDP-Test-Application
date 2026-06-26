@@ -35,42 +35,122 @@ class ResetTestBase:
     RESET_TIMEOUT_S  = 30    # seconds before we declare controller lost
     RENUM_TIMEOUT_S  = 45    # seconds for full PCIe re-enumeration
 
+
+    # ── Namespace save / delete / restore ─────────────────────────────────────
+
+    def _save_ns_list(self, driver, log, ctrl_dev: str) -> list:
+        import re as _re
+        saved = []
+        list_r = driver.run_cmd(["list-ns", ctrl_dev, "--all"], json_out=True)
+        if list_r["rc"] != 0:
+            return saved
+        data     = list_r.get("data", {})
+        raw_list = (data.get("nsid_list") or data.get("NamespaceList")
+                    or (data if isinstance(data, list) else []))
+        for raw in raw_list:
+            nsid = int(raw["nsid"] if isinstance(raw, dict) else raw)
+            ns_info = {"nsid": nsid, "nsze": 0, "ncap": 0, "flbas": 0,
+                       "nphndls": 0, "endg_id": 1}
+            idr = driver.run_cmd(
+                ["id-ns", ctrl_dev, f"--namespace-id={nsid}"], json_out=True)
+            if idr["rc"] == 0:
+                d = idr.get("data", {})
+                if isinstance(d, dict):
+                    ns_info["nsze"]  = int(d.get("nsze", 0))
+                    ns_info["ncap"]  = int(d.get("ncap", ns_info["nsze"]))
+                    ns_info["flbas"] = int(d.get("flbas", 0)) & 0xF
+            saved.append(ns_info)
+        log(f"  Saved {len(saved)} namespace(s)")
+        return saved
+
+    def _delete_all_ns(self, driver, log, ctrl_dev: str) -> bool:
+        r = driver.run_cmd(
+            ["delete-ns", ctrl_dev, "--namespace-id=0xFFFFFFFF"], json_out=False)
+        if r["rc"] == 0:
+            log("  ✓ All namespaces deleted")
+        else:
+            log(f"  ⚠ delete-ns: {r['stderr'].strip()}")
+        return r["rc"] == 0
+
+    def _restore_ns_list(self, driver, log, ctrl_dev: str, saved: list):
+        import re as _re2
+        from tests.utils import attach_ns
+        for ns in saved:
+            args = [
+                "create-ns", ctrl_dev,
+                f"--nsze={ns['nsze']}",
+                f"--ncap={ns['ncap']}",
+                f"--flbas={ns['flbas']}",
+                "--nmic=0",
+                f"--endg-id={ns['endg_id']}",
+            ]
+            if ns["nphndls"] > 0:
+                args.append(f"--nphndls={ns['nphndls']}")
+            cr = driver.run_cmd(args, json_out=False)
+            if cr["rc"] != 0:
+                log(f"  ⚠ create-ns failed: {cr['stderr'].strip()}")
+                continue
+            out      = cr["stdout"] + cr["stderr"]
+            m        = _re2.search(r"nsid[:\s]+(\d+)", out, _re2.IGNORECASE)
+            new_nsid = int(m.group(1)) if m else ns["nsid"]
+            at       = attach_ns(driver, ctrl_dev, new_nsid, log)
+            if at["rc"] == 0:
+                log(f"  ✓ Restored NSID {new_nsid}")
+            else:
+                log(f"  ⚠ attach-ns failed: {at['stderr'].strip()}")
+
+    def _set_fdp_enabled(self, driver, log, ctrl_dev: str,
+                          enable: bool, endgrp: int = 1) -> bool:
+        cdw10 = 0x1D | 0x80000000
+        cdw12 = 0x1 if enable else 0x0
+        r = driver.run_cmd([
+            "admin-passthru", ctrl_dev, "--opcode=0x09",
+            f"--cdw10={cdw10}", f"--cdw11={endgrp}", f"--cdw12={cdw12}",
+        ], json_out=False)
+        action = "enabled" if enable else "disabled"
+        if r["rc"] == 0:
+            log(f"  ✓ FDP {action} (Set Features FID 0x1D)")
+        else:
+            log(f"  ✗ FDP {action} failed: {r['stderr'].strip()}")
+        return r["rc"] == 0
+
+    def _reenable_fdp(self, driver, log, p: dict):
+        import re as _re
+        ctrl_dev = _re.sub(r"n\d+$", "", driver.device)
+        endgrp   = int(p.get("endgrp", 1))
+        log("  Saving namespace geometry...")
+        saved = self._save_ns_list(driver, log, ctrl_dev)
+        log("  Deleting namespaces before re-enabling FDP...")
+        self._delete_all_ns(driver, log, ctrl_dev)
+        self._set_fdp_enabled(driver, log, ctrl_dev, enable=True, endgrp=endgrp)
+        state = self._get_fdp_enable_state(driver, log, endgrp=endgrp)
+        log(f"  FDP state after re-enable: {state}")
+        if saved:
+            log("  Restoring namespaces...")
+            self._restore_ns_list(driver, log, ctrl_dev, saved)
+
     # ── FDP enable check ──────────────────────────────────────────────────────
 
     def _get_fdp_enable_state(self, driver, log, endgrp: int = 1) -> bool | None:
         """
-        Return True if FDP is enabled, False if disabled, None if unknown.
-
-        Tries two methods in order:
-          1. Get Feature FID 0x1D (Flexible Data Placement) — most reliable
-          2. Check accessibility of FDP Configs log — indicates FDP is active
+        Query FDP enable state via get-feature FID 0x1D.
+        Delegates to DUTConfig._parse_fdp_enabled() which handles all the
+        device-specific response formats including the nested dict structure
+        returned by some nvme-cli builds.
+        Returns True (enabled), False (disabled), or None (undetermined).
         """
-        # Method 1: Get Feature FID 0x1D
-        feat = driver.run_cmd(
-            ["get-feature", driver.device,
-             "--feature-id=0x1d", f"--cdw11={endgrp}"],
-            json_out=True
+        import re as _re
+        from tests.dut_config import DUTConfig
+        ctrl_dev = _re.sub(r"n\d+$", "", driver.device)
+        feat_r = driver.run_cmd(
+            ["get-feature", ctrl_dev,
+             "--feature-id=0x1d", f"--cdw11={endgrp}",
+             "--namespace-id=0"],
+            json_out=True,
         )
-        if feat["rc"] == 0:
-            data = feat.get("data", {})
-            if isinstance(data, dict):
-                for key in ("fdp_enabled", "FdpEnabled", "FDP Enabled",
-                            "value", "result"):
-                    if key in data:
-                        raw = data[key]
-                        # Some firmwares return "0x1 (Enabled)" style strings
-                        val = int(str(raw).split()[0], 0) if isinstance(raw, str) else int(raw)
-                        log(f"  Get-Feature FID 0x1D → {key}={raw} → enabled={bool(val)}")
-                        return bool(val)
-
-        # Method 2: FDP Configs log — if it returns data, FDP must be active
-        cfg = driver.fdp_configs(endgrp=endgrp)
-        if cfg["rc"] == 0 and cfg.get("data"):
-            log(f"  FDP Configs log accessible — FDP inferred as enabled")
-            return True
-
-        return None
-
+        result = DUTConfig._parse_fdp_enabled(feat_r)
+        log(f"  FDP enable state: {result}")
+        return result
     def _assert_fdp_enabled(self, driver, log, endgrp: int = 1) -> TestResult | None:
         """
         Guard: verify FDP is enabled before proceeding with a test.
@@ -385,20 +465,47 @@ class ResetTestBase:
         subprocess.run(["sysctl", "-w", "kernel.io_uring_disabled=0"],
                        capture_output=True)
 
-        dev = driver.device
+        import re as _re
+        dev  = driver.device
         base = dev.split("/")[-1]
-        # Build namespace device path: /dev/nvme0 → /dev/nvme0n1
-        ns_dev = dev if ("n" in base and base.index("n") > 4) else f"{dev}n{namespace}"
-        log(f"  FIO target: {ns_dev}  duration={duration_sec}s  bs={block_size}  "
+        # Derive the block device (/dev/nvme0n1) and char device (/dev/ng0n1)
+        # io_uring_cmd (required for FDP) needs the generic char device
+        if "n" in base and base.index("n") > 4:
+            ns_dev = dev   # already a namespace device e.g. /dev/nvme0n1
+        else:
+            ns_dev = f"{dev}n{namespace}"
+        m = _re.search(r"nvme(\d+)n(\d+)", ns_dev)
+        ng_dev = f"/dev/ng{m.group(1)}n{m.group(2)}" if m else ns_dev
+        log(f"  FIO target: {ng_dev}  duration={duration_sec}s  bs={block_size}  "
             f"qd={queue_depth}  placement_handle={placement_handle}")
 
+        # Verify the namespace has FDP placement handles before using fdp=1.
+        # fio issues an internal RUH status query at startup; if the namespace
+        # has no handles configured it fails with "ruh info failed" immediately.
+        use_fdp = False
+        try:
+            ruhs_r = driver.fdp_ruhs(ns=namespace)
+            ruhs   = driver.extract_ruhs(ruhs_r) if ruhs_r["rc"] == 0 else []
+            if ruhs:
+                use_fdp = True
+                log(f"  FDP placement handles found ({len(ruhs)}) — using fdp=1")
+            else:
+                log("  ⚠ No FDP placement handles found — running fio without fdp=1")
+        except Exception as _e:
+            log(f"  ⚠ Could not query RUH status ({_e}) — running fio without fdp=1")
+
+        fdp_lines = (
+            f"fdp=1\nfdp_pli={placement_handle}\nfdp_pli_select=roundrobin\n"
+            if use_fdp else ""
+        )
         job = (
             "[global]\n"
-            "ioengine=io_uring\ndirect=1\nrw=write\n"
+            "ioengine=io_uring_cmd\ndirect=0\nrw=write\n"
             f"bs={block_size}\niodepth={queue_depth}\n"
             f"runtime={duration_sec}\ntime_based=1\n"
-            f"fdp=1\nfdp_pli={placement_handle}\n\n"
-            f"[fdp_workload]\nfilename={ns_dev}\n"
+            "size=100%\n"
+            f"{fdp_lines}"
+            f"[fdp_workload]\nfilename={ng_dev}\n"
         )
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".fio", delete=False) as f:
@@ -476,24 +583,55 @@ class ResetTestBase:
     def _read_identify_directive(self, driver, log, namespace: int = 1) -> dict | None:
         """
         Directive Receive: Type 00h (Identify), Operation 01h (Return Parameters).
-        Returns the parsed response dict, or None on error.
 
-        The Identify directive response contains one bit per directive type:
-          Byte 0 bit 0 = Identify Directive supported
-          Byte 0 bit 1 = Streams Directive supported
-          Byte 0 bit 2 = Data Placement (FDP) Directive supported
+        Uses admin-passthru with --raw-binary so the actual byte values are
+        preserved. nvme-cli's JSON/text output represents non-printable bytes
+        as '.' making bit extraction impossible (e.g. 0x05 = Supported+Persistent
+        is non-printable ASCII and would show as '.').
 
-        The "Directives Supported" and "Persistent Across Controller Resets"
-        bits are in a separate sub-structure per directive type.
+        The 4096-byte response has one capability byte per directive type:
+          Byte 0 = Identify Directive (0x00):  bits [Supported, Enabled, Persistent]
+          Byte 1 = Streams Directive  (0x01):  same
+          Byte 2 = Data Placement Dir (0x02):  same
         """
+        import re as _re, subprocess as _sp
+        ctrl_dev = _re.sub(r"n\d+$", "", driver.device)
+        # CDW10: 0x3FF (keep as hex — decimal conversion mangles the value)
+        # CDW11: 0x1 (DTYPE = Identify Directive)
+        cdw10 = "0x3FF"
+        cdw11 = "0x1"
+
+        try:
+            result = _sp.run([
+                "nvme", "admin-passthru", ctrl_dev,
+                "--opcode=0x1A",       # Directive Receive opcode
+                f"--namespace-id={namespace}",
+                "--data-len=4096",
+                "--read",
+                f"--cdw10={cdw10}",
+                f"--cdw11={cdw11}",
+                "--raw-binary",
+            ], capture_output=True, text=False, timeout=15)
+
+            if result.returncode == 0 and result.stdout:
+                raw = result.stdout
+                log(f"  Directive Receive: {len(raw)} bytes received via raw-binary")
+                if len(raw) >= 3:
+                    log(f"  Byte[0]=0x{raw[0]:02x}  Byte[1]=0x{raw[1]:02x}  "
+                        f"Byte[2]=0x{raw[2]:02x}")
+                return {"raw_bytes": raw}
+
+            log(f"  admin-passthru Directive Receive failed "
+                f"(rc={result.returncode}), falling back to dir-receive JSON...")
+        except Exception as e:
+            log(f"  admin-passthru exception: {e}, falling back to dir-receive...")
+
+        # Fallback: dir-receive JSON (may return unparseable dot strings)
         r = driver.dir_receive(
-            dir_type=0x00,    # Identify Directive
-            dir_oper=0x01,    # Return Parameters
-            namespace=namespace,
-            data_len=4096,
+            dir_type=0x00, dir_oper=0x01,
+            namespace=namespace, data_len=4096,
         )
         if r["rc"] != 0:
-            log(f"  Directive Receive (Identify) failed (rc={r['rc']}): "
-                f"{r.get('stderr','').strip()}")
+            log(f"  Directive Receive failed: {r.get('stderr','').strip()}")
             return None
         return r.get("data", {})

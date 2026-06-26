@@ -431,7 +431,8 @@ class NVMeCliDriver(BaseNVMeDriver):
 
     def create_ns(self, nsze: int, ncap: int, flbas: int = 0,
                   dps: int = 0, nmic: int = 0,
-                  endg_id: int = 1, nphndls: int = 0) -> dict:
+                  endg_id: int = 1, nphndls: int = 0,
+                  phndls: str = "") -> dict:
         """
         Create a namespace.
           nsze     : Namespace Size (in LBAs)
@@ -440,7 +441,8 @@ class NVMeCliDriver(BaseNVMeDriver):
           dps      : Data Protection Settings
           nmic     : Namespace Multi-path I/O and NS Sharing Capabilities
           endg_id  : Endurance Group ID
-          nphndls  : Number of Placement Handles to assign
+          nphndls  : Number of Placement Handles to assign (--nphndls=N)
+          phndls   : Comma-separated placement handle indices (--phndls=0,1,2,...)
         Command: nvme create-ns <dev> --nsze=... --ncap=... ...
         """
         args = [
@@ -454,6 +456,8 @@ class NVMeCliDriver(BaseNVMeDriver):
         ]
         if nphndls > 0:
             args.append(f"--nphndls={nphndls}")
+        if phndls:
+            args.append(f"--phndls={phndls}")
         return self.run_cmd(args, json_out=False)
 
     def delete_ns(self, nsid: int) -> dict:
@@ -493,6 +497,53 @@ class NVMeCliDriver(BaseNVMeDriver):
         if lsi:
             args.append(f"--lsi={lsi}")
         return self.run_cmd(args, json_out=(not bin_out))
+
+    def get_log_raw_bytes(self, log_id: int, log_len: int = 4096,
+                          namespace: int = 0, lsp: int = 0,
+                          lsi: int = 0) -> bytes | None:
+        """
+        Retrieve raw binary bytes from any NVMe log page.
+
+        Uses subprocess directly with text=False so binary output is not
+        mangled by UTF-8 decoding — unlike run_cmd() which forces text=True.
+
+          log_id    : Log Page Identifier (e.g. 0x20 = FDP Configurations)
+          log_len   : Number of bytes to retrieve (default: 4096)
+          namespace : Namespace ID (0 = controller-level)
+          lsp       : Log Specific Parameter (CDW10 bits [15:8])
+          lsi       : Log Specific Identifier (e.g. endurance group ID)
+
+        Returns raw bytes on success, or None on failure.
+
+        Example — read MAXPIDS from Log ID 0x20, bytes [10:12]:
+            raw = driver.get_log_raw_bytes(log_id=0x20, log_len=4096, lsi=1)
+            if raw and len(raw) >= 12:
+                import struct
+                maxpids = struct.unpack_from("<H", raw, 10)[0]
+        """
+        import subprocess as _sp
+        import re as _re
+
+        ctrl_dev = _re.sub(r'n\d+$', '', self.device)
+        args = [
+            "nvme", "get-log", ctrl_dev,
+            f"--log-id={log_id}",
+            f"--log-len={log_len}",
+            "--raw-binary",
+        ]
+        if namespace:
+            args.append(f"--namespace-id={namespace}")
+        if lsp:
+            args.append(f"--lsp={lsp}")
+        if lsi:
+            args.append(f"--lsi={lsi}")
+        try:
+            result = _sp.run(args, capture_output=True, text=False, timeout=30)
+            if result.returncode == 0 and result.stdout:
+                return result.stdout
+            return None
+        except Exception:
+            return None
 
     # ── Directives ────────────────────────────────────────────────────────────
 
@@ -617,8 +668,13 @@ class NVMeCliDriver(BaseNVMeDriver):
           cdw12 = Feature value (bit 0: 1=enable, 0=disable)
         """
         cdw10 = (feature_id & 0xFF) | (0x80000000 if save else 0)
+        # admin-passthru requires the controller device (/dev/nvme0), not a
+        # namespace path — especially important here since all namespaces are
+        # deleted before FID 0x1D is issued.
+        import re as _re
+        ctrl_dev = _re.sub(r'n\d+$', '', self.device)
         args = [
-            "admin-passthru", self.device,
+            "admin-passthru", ctrl_dev,
             "--opcode=0x09",
             f"--cdw10={cdw10}",
         ]
